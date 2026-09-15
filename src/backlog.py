@@ -4,44 +4,26 @@ Owner: Billy (Dev 1)
 
 """
 
+from helpers import aggregate
+
+
 def get_unplayed_value(library):
-    """Hitung total harga game yang 0 jam main."""
-    total = 0
-    for game in library:
-        if game["played_hours"] == 0:
-            total += game["price"]
-    return total
+    """Total harga game yang belum pernah dimainkan (played_hours == 0)."""
+    return aggregate(library, lambda g: g["played_hours"] == 0, lambda g: g["price"])
 
 
 def get_remaining_hours(library):
-    """Hitung total sisa jam main game yang belum tamat."""
-    total = 0
-    for game in library:
-        if game["status"] != "Completed":
-            sisa_jam = game["est_hours"] - game["played_hours"]
-            if sisa_jam > 0:
-                total += sisa_jam
-    return total
+    """Total sisa jam main dari game yang belum selesai."""
+    return aggregate(
+        library,
+        lambda g: g["status"] != "Completed",
+        lambda g: max(0, g["est_hours"] - g["played_hours"]),
+    )
 
 
 def get_priority_game(library):
-    """Cari 1 game aktif yang paling sedikit sisa jamnya (paling dekat tamat)."""
-    # Mengumpulkan game yang belum tamat
-    active_games = []
-    for game in library:
-        if game["status"] != "Completed":
-            active_games.append(game)
-
+    """Cari game aktif dengan sisa jam paling sedikit (paling dekat tamat)."""
+    active_games = [g for g in library if g["status"] != "Completed"]
     if not active_games:
         return None
-
-    # Mencari game yang sisa jamnya paling kecil
-    priority_game = active_games[0]
-    for game in active_games:
-        sisa_game_ini = game["est_hours"] - game["played_hours"]
-        sisa_priority = priority_game["est_hours"] - priority_game["played_hours"]
-
-        if sisa_game_ini < sisa_priority:
-            priority_game = game
-
-    return priority_game
+    return min(active_games, key=lambda g: g["est_hours"] - g["played_hours"])

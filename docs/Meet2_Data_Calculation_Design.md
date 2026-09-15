@@ -56,7 +56,7 @@ Aturan umum: semua nama variabel pakai `snake_case`. Variabel akumulasi/total di
 
 ## 4. Input, process, output specification
 
-### Fitur: Registrasi game backlog baru, Menu 1 di `app.py` & `data.py`
+### Fitur: Registrasi game backlog baru — Billy (Dev 1), Menu 1 di `app.py` & `data.py`
 ```
 Input   : title (str), price (float), est_hours (float), mode pelacakan (1=jam langsung/2=persentase), played_hours atau progress_pct (float)
 Process : data.determine_status() membandingkan played_hours dengan est_hours untuk menentukan status; data.add_game() menyimpan entry baru ke library
