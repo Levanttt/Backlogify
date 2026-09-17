@@ -37,7 +37,7 @@ pip-log.txt
 pip-delete-this-directory.txt
 
 # Project-specific
-backlog.json
+data/*.json
 
 # Unit test / coverage reports
 htmlcov/
