@@ -4,32 +4,39 @@ Owner: Billy (Dev 1)
 
 """
 
-from helpers import aggregate
-
-
 def get_unplayed_value(library):
     """Menghitung total harga game yang belum pernah dimainkan."""
-    # Menggunakan aggregate untuk menghitung total harga game.
-    # Lambda pertama memilih game yang jam mainnya masih 0 (played_hours == 0).
-    # Lambda kedua mengambil nilai harga (price) untuk dijumlahkan.
-    return aggregate(library, lambda g: g["played_hours"] == 0, lambda g: g["price"])
+    total = 0
+    # Memeriksa setiap game satu per satu, menjumlahkan harga yang jam mainnya masih 0.
+    for game in library:
+        if game["played_hours"] == 0:
+            total += game["price"]
+    return total
 
 
 def get_remaining_hours(library):
     """Menghitung total sisa jam bermain dari game yang belum tamat."""
-    return aggregate( # Menggunakan aggregate untuk mengumpulkan akumulasi sisa jam main.
-        library,
-        lambda g: g["status"] != "Completed", # Lambda disini berfungsi untuk menyaring game yang statusnya belum selesai (bukan Completed).
-        lambda g: max(0, g["est_hours"] - g["played_hours"]), # Lambda disini berfungsi untuk menghitung selisih estimasi jam tamat dikurangi jam main saat ini.
-    )
+    total = 0
+    # Memeriksa setiap game, hanya menjumlahkan sisa jam dari yang statusnya belum Completed.
+    for game in library:
+        if game["status"] != "Completed":
+            # Menggunakan max(0, ...) supaya sisa jam tidak menjadi minus kalau jam main melebihi estimasi.
+            total += max(0, game["est_hours"] - game["played_hours"])
+    return total
 
 
 def get_priority_game(library):
     """Mencari game aktif yang sisa jam bermainnya paling sedikit."""
-    # Menyaring seluruh game yang belum tamat ke dalam daftar active_games.
-    active_games = [g for g in library if g["status"] != "Completed"]
-    if not active_games:
-        return None
+    priority_game = None
+    smallest_remaining = None
 
-    # Menggunakan fungsi min dengan parameter key lambda untuk memilih game dengan sisa jam terkecil.
-    return min(active_games, key=lambda g: g["est_hours"] - g["played_hours"])
+    # Menelusuri seluruh game untuk mencari kandidat dengan sisa jam bermain paling kecil.
+    for game in library:
+        if game["status"] != "Completed":
+            remaining = game["est_hours"] - game["played_hours"]
+            # Menyimpan game ini sebagai kandidat terbaik kalau belum ada kandidat, atau sisa jamnya lebih kecil dari kandidat sebelumnya.
+            if priority_game is None or remaining < smallest_remaining:
+                priority_game = game
+                smallest_remaining = remaining
+
+    return priority_game
