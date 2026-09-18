@@ -15,6 +15,70 @@ max_backlog_hours = 50.0
 min_discount_percent = 50.0
 max_unplayed_value = 1000000.0
 
+def main():
+    """Menjalankan navigasi menu utama."""
+    global max_backlog_hours, min_discount_percent, max_unplayed_value
+
+    name = input("Masukkan Nama Profile: ")
+    data.login(name)
+    print(f"\nSelamat datang, {name}! ({len(data.library)} game di backlog kamu)\n")
+
+    # Profile baru belum punya threshold tersimpan, jadi tampilkan setup awal dulu.
+    if data.is_new_profile:
+        setup_thresholds_first_time()
+    else:
+        # Profile lama, muat threshold yang sudah pernah disimpan.
+        max_unplayed_value = data.saved_thresholds["max_unplayed_value"]
+        max_backlog_hours = data.saved_thresholds["max_backlog_hours"]
+        min_discount_percent = data.saved_thresholds["min_discount_percent"]
+
+    while True:
+        print_header("BACKLOGIFY - GAMING PURCHASE DECISION PLATFORM")
+        print("1. Registrasi Game Backlog Baru")
+        print("2. Evaluasi Pembelian Game Baru")
+        print("3. Lihat Koleksi & Summary Backlog")
+        print("4. Atur Threshold Keputusan (Custom Limits)")
+        print("5. Keluar")
+        choice = input("Pilih Menu (1-5): ")
+
+        # Memanggil fungsi yang sesuai dengan nomor pilihan pengguna.
+        if choice == "1":
+            menu_add_game()
+        elif choice == "2":
+            menu_evaluate_purchase()
+        elif choice == "3":
+            menu_view_summary()
+        elif choice == "4":
+            menu_set_thresholds()
+        elif choice == "5":
+            print("\nTerima kasih telah menggunakan Backlogify!")
+            break
+        else:
+            print("\nPilihan tidak valid, silakan coba lagi.")
+
+def setup_thresholds_first_time():
+    """Ditampilkan sekali waktu profile baru pertama kali login."""
+    print_header("SETUP AWAL - THRESHOLD DECISION ENGINE")
+    print("Threshold ini dipakai untuk mengevaluasi keputusan setiap kamu ingin beli game baru.")
+    print("\nNilai Default:")
+    print(f"  Batas Maksimal Uang Ngendap (Rp) : Rp {max_unplayed_value:,.0f}")
+    print(f"  Batas Maksimal Sisa Jam Backlog  : {max_backlog_hours:.0f} Jam")
+    print(f"  Batas Minimal Diskon Game (%)    : {min_discount_percent:.0f}%")
+    print("-" * 65)
+    print("1. Pakai Default")
+    print("2. Atur Custom")
+    choice = input("Pilih (1/2): ")
+
+    # Custom pakai ulang menu_set_thresholds yang sudah ada, biar gak duplikat logika.
+    if choice == "2":
+        menu_set_thresholds()
+
+    data.save_thresholds({
+        "max_backlog_hours": max_backlog_hours,
+        "min_discount_percent": min_discount_percent,
+        "max_unplayed_value": max_unplayed_value,
+    })
+
 
 def print_header(title):
     """Mencetak garis pemisah antarmuka menu."""
@@ -118,7 +182,7 @@ def menu_evaluate_purchase():
     print(f"Potensi CPH\t: Rp {potential_cph:,.0f} / Jam")
 
     print("\n--- KONDISI BACKLOG VS THRESHOLD ---")
-    print(f"TotalUang Ngendap\t: Rp {total_unplayed:,.0f} (Limit: Rp {max_unplayed_value:,.0f})")
+    print(f"Total Uang Ngendap\t: Rp {total_unplayed:,.0f} (Limit: Rp {max_unplayed_value:,.0f})")
     print(f"Total Sisa Jam\t: {total_rem_hours:.0f} Jam Main (Limit: {max_backlog_hours:.0f} Jam)")
     print(f"Diskon Game\t: {new_discount_percent:.0f}% (Min Toleransi: {min_discount_percent:.0f}%)")
 
@@ -183,73 +247,6 @@ def menu_set_thresholds():
     })
 
     print("\nTHRESHOLD BERHASIL DIPERBARUI DAN DISIMPAN!")
-
-
-def setup_thresholds_first_time():
-    """Ditampilkan sekali waktu profile baru pertama kali login."""
-    print_header("SETUP AWAL - THRESHOLD DECISION ENGINE")
-    print("Threshold ini dipakai untuk mengevaluasi keputusan setiap kamu ingin beli game baru.")
-    print("\nNilai Default:")
-    print(f"  Batas Maksimal Uang Ngendap (Rp) : Rp {max_unplayed_value:,.0f}")
-    print(f"  Batas Maksimal Sisa Jam Backlog  : {max_backlog_hours:.0f} Jam")
-    print(f"  Batas Minimal Diskon Game (%)    : {min_discount_percent:.0f}%")
-    print("-" * 65)
-    print("1. Pakai Default")
-    print("2. Atur Custom")
-    choice = input("Pilih (1/2): ")
-
-    # Custom pakai ulang menu_set_thresholds yang sudah ada, biar gak duplikat logika.
-    if choice == "2":
-        menu_set_thresholds()
-
-    data.save_thresholds({
-        "max_backlog_hours": max_backlog_hours,
-        "min_discount_percent": min_discount_percent,
-        "max_unplayed_value": max_unplayed_value,
-    })
-
-
-def main():
-    """Menjalankan navigasi menu utama."""
-    global max_backlog_hours, min_discount_percent, max_unplayed_value
-
-    name = input("Masukkan Nama Profile: ")
-    data.login(name)
-    print(f"\nSelamat datang, {name}! ({len(data.library)} game di backlog kamu)\n")
-
-    # Profile baru belum punya threshold tersimpan, jadi tampilkan setup awal dulu.
-    if data.is_new_profile:
-        setup_thresholds_first_time()
-    else:
-        # Profile lama, muat threshold yang sudah pernah disimpan.
-        max_unplayed_value = data.saved_thresholds["max_unplayed_value"]
-        max_backlog_hours = data.saved_thresholds["max_backlog_hours"]
-        min_discount_percent = data.saved_thresholds["min_discount_percent"]
-
-    while True:
-        print_header("BACKLOGIFY - GAMING PURCHASE DECISION PLATFORM")
-        print("1. Registrasi Game Backlog Baru")
-        print("2. Evaluasi Pembelian Game Baru")
-        print("3. Lihat Koleksi & Summary Backlog")
-        print("4. Atur Threshold Keputusan (Custom Limits)")
-        print("5. Keluar")
-        choice = input("Pilih Menu (1-5): ")
-
-        # Memanggil fungsi yang sesuai dengan nomor pilihan pengguna.
-        if choice == "1":
-            menu_add_game()
-        elif choice == "2":
-            menu_evaluate_purchase()
-        elif choice == "3":
-            menu_view_summary()
-        elif choice == "4":
-            menu_set_thresholds()
-        elif choice == "5":
-            print("\nTerima kasih telah menggunakan Backlogify!")
-            break
-        else:
-            print("\nPilihan tidak valid, silakan coba lagi.")
-
 
 if __name__ == "__main__":
     main()
