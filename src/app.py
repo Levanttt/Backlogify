@@ -10,24 +10,24 @@ import data
 from helpers import get_float_input
 
 # Batas default untuk menentukan keputusan pembelian game.
-# Dibuat variabel global agar nilainya bisa diakses dan diperbarui oleh fungsi lain.
 max_backlog_hours = 50.0
 min_discount_percent = 50.0
 max_unplayed_value = 1000000.0
 
 def main():
     """Menjalankan navigasi menu utama."""
+    # Dibuat variabel global agar nilainya bisa diakses dan diperbarui oleh fungsi lain.
     global max_backlog_hours, min_discount_percent, max_unplayed_value
 
     name = input("Masukkan Nama Profile: ")
     data.login(name)
     print(f"\nSelamat datang, {name}! ({len(data.library)} game di backlog kamu)\n")
 
-    # Profile baru belum punya threshold tersimpan, jadi tampilkan setup awal dulu.
+    # Jika profile yang baru di input tidak ada, maka tampilkan setup awal.
     if data.is_new_profile:
         setup_thresholds_first_time()
     else:
-        # Profile lama, muat threshold yang sudah pernah disimpan.
+        # Profile lama, load threshold yang sudah pernah disimpan.
         max_unplayed_value = data.saved_thresholds["max_unplayed_value"]
         max_backlog_hours = data.saved_thresholds["max_backlog_hours"]
         min_discount_percent = data.saved_thresholds["min_discount_percent"]
@@ -69,7 +69,7 @@ def setup_thresholds_first_time():
     print("2. Atur Custom")
     choice = input("Pilih (1/2): ")
 
-    # Custom pakai ulang menu_set_thresholds yang sudah ada, biar gak duplikat logika.
+    # Custom pakai ulang menu_set_thresholds yang sudah ada.
     if choice == "2":
         menu_set_thresholds()
 
@@ -151,7 +151,7 @@ def menu_evaluate_purchase():
     # Menentukan rekomendasi game yang disarankan untuk diselesaikan terlebih dahulu.
     if closest_game:
         rem_closest = closest_game["est_hours"] - closest_game["played_hours"]
-        action_plan = f"Selesaikan '{closest_game['title']}' dulu (sisa {rem_closest:.0f} jam lagi tamat)."
+        action_plan = f"Selesaikan '{closest_game['title']}' dulu (dengan sisa {rem_closest:.0f} jam lagi tamat)."
     else:
         action_plan = "Backlog kamu kosong/sudah tamat semua, kamu bebas beli game baru!"
 

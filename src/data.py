@@ -49,15 +49,18 @@ def login(name):
     profiles = load_all_profiles()
     matched = find_profile_name(profiles, name)
 
+    # Jika profil ditemukan, maka muat data library dan threshold yang telah tersimpan
     if matched:
-        current_profile = matched
-        library = profiles[matched]["library"]
-        saved_thresholds = profiles[matched]["thresholds"]
-        is_new_profile = False
+        current_profile = matched 
+        library = profiles[matched]["library"]  
+        saved_thresholds = profiles[matched]["thresholds"]  
+        is_new_profile = False  
+
+    # Jika profil tidak ditemukan / Profil baru
     else:
-        current_profile = name
-        library = []
-        saved_thresholds = None
+        current_profile = name  
+        library = []  
+        saved_thresholds = None  
         is_new_profile = True
 
     return library
