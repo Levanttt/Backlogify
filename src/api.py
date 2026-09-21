@@ -10,13 +10,12 @@ Kedua fungsi return None kalau gagal (bukan raise), supaya app.py gampang
 cek: `if hasil is None: minta input manual`.
 """
 
-import requests
+import json
+import urllib.parse
+import urllib.request
 from difflib import SequenceMatcher
 
-try:
-    from howlongtobeatpy import HowLongToBeat
-except ImportError:
-    HowLongToBeat = None
+from howlongtobeatpy import HowLongToBeat
 
 CHEAPSHARK_DEALS_URL = "https://www.cheapshark.com/api/1.0/deals"
 CHEAPSHARK_HEADERS = {
@@ -25,38 +24,30 @@ CHEAPSHARK_HEADERS = {
 
 
 def _similarity(a, b):
-    """Skor kemiripan dua string, 0.0 - 1.0. Dipakai buat milih hasil
-    paling cocok waktu API balikin banyak kandidat untuk satu judul."""
+    """Skor kemiripan dua string, 0.0 - 1.0. Dipakai khusus untuk CheapShark,
+    karena API itu tidak punya similarity bawaan seperti HowLongToBeat."""
     return SequenceMatcher(None, a.lower().strip(), b.lower().strip()).ratio()
 
 
 def get_estimated_hours(title):
     """
     Input   : title (str) - judul game
-    Process : cari lewat howlongtobeatpy, lalu pilih hasil dengan judul
-              paling mirip ke `title` (bukan asal ambil hasil pertama),
-              dibungkus try-except karena HLTB scraping tidak resmi.
-    Output  : est_hours (float, dari main_story) kalau ketemu & valid,
-              None kalau API gagal / tidak ada hasil / main_story kosong.
+    Process : Cari lewat howlongtobeatpy, kembalikan dictionary 3 gaya main.
     """
-    if HowLongToBeat is None:
-        return None
-
     try:
         results = HowLongToBeat().search(title)
+        if not results:
+            return None
+
+        best_match = max(results, key=lambda r: r.similarity)
+        
+        return {
+            "main_story": float(best_match.main_story) if best_match.main_story else 0.0,
+            "main_extra": float(best_match.main_extra) if best_match.main_extra else 0.0,
+            "completionist": float(best_match.completionist) if best_match.completionist else 0.0,
+        }
     except Exception:
-        # HLTB down, timeout, format response berubah, dll -> fallback manual
         return None
-
-    if not results:
-        return None
-
-    best_match = max(results, key=lambda r: _similarity(title, r.game_name))
-
-    if best_match.main_story is None or best_match.main_story <= 0:
-        return None
-
-    return float(best_match.main_story)
 
 
 def get_discount_info(title):
@@ -64,22 +55,27 @@ def get_discount_info(title):
     Input   : title (str) - judul game
     Process : GET ke CheapShark /deals?title=..., lalu dari daftar deal
               yang balik, pilih yang judulnya (field "title") paling mirip
-              ke `title`. Dibungkus try-except untuk network/HTTP error.
+              ke `title` lewat _similarity, karena CheapShark mencocokkan
+              title sebagai substring dan bisa membalikkan game lain juga.
+              Kalau ada beberapa deal untuk judul yang sama persis (dari
+              toko berbeda), diambil yang diskonnya paling besar.
     Output  : dict {
                   "price_original": float,
                   "price_discounted": float,
                   "discount_percent": float
               } kalau ketemu, None kalau gagal / tidak ada deal.
+              Catatan: harga dari CheapShark selalu dalam USD, bukan Rupiah.
+              Perlu konversi kurs dulu sebelum dipakai di alur app.py yang
+              berbasis Rp.
     """
+    query = urllib.parse.urlencode({"title": title})
+    request = urllib.request.Request(
+        f"{CHEAPSHARK_DEALS_URL}?{query}", headers=CHEAPSHARK_HEADERS
+    )
+
     try:
-        response = requests.get(
-            CHEAPSHARK_DEALS_URL,
-            params={"title": title, "limit": 10},
-            headers=CHEAPSHARK_HEADERS,
-            timeout=5,
-        )
-        response.raise_for_status()
-        deals = response.json()
+        with urllib.request.urlopen(request, timeout=5) as response:
+            deals = json.loads(response.read())
     except Exception:
         # request gagal, timeout, response bukan JSON valid, dll -> fallback manual
         return None
@@ -93,8 +89,6 @@ def get_discount_info(title):
             savings_score = float(deal.get("savings", 0))
         except (TypeError, ValueError):
             savings_score = 0.0
-        # utamakan judul paling mirip; kalau seri (beberapa deal untuk
-        # game yang sama dari toko berbeda), pilih yang diskonnya paling besar
         return (title_score, savings_score)
 
     best_match = max(deals, key=match_key)
