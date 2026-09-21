@@ -5,9 +5,10 @@ Owner: Irfan (Lead) - Decision Engine, Menu 2 & Menu 4
 """
 
 import analytics
+import api
 import backlog
 import data
-from helpers import get_float_input
+from helpers import get_float_input, get_usd_to_idr_rate
 
 # Batas default untuk menentukan keputusan pembelian game.
 max_backlog_hours = 50.0
@@ -87,36 +88,63 @@ def print_header(title):
     print("=" * 65)
 
 
+def get_est_hours_with_fallback(title):
+    """Coba ambil estimasi jam tamat secara otomatis dengan UX yang profesional."""
+    hltb_data = api.get_estimated_hours(title)
+
+    if hltb_data is None:
+        print("\n(Sistem tidak menemukan data waktu tamat otomatis, silakan input manual)")
+        return get_float_input("Masukkan Estimasi Jam Tamat : ")
+
+    print(f"\n[Sistem menemukan estimasi waktu tamat untuk '{title}']")
+    print(f"1. Main Story        : {hltb_data['main_story']:.0f} Jam")
+    print(f"2. Main + Sides      : {hltb_data['main_extra']:.0f} Jam")
+    print(f"3. Completionist     : {hltb_data['completionist']:.0f} Jam")
+    print("4. Input Manual Angka Sendiri")
+    
+    pilihan = input("Pilih target penyelesaian kamu (1-4, Default 1): ").strip()
+    
+    if pilihan == "2" and hltb_data['main_extra'] > 0:
+        return hltb_data['main_extra']
+    elif pilihan == "3" and hltb_data['completionist'] > 0:
+        return hltb_data['completionist']
+    elif pilihan == "4":
+        return get_float_input("Masukkan Estimasi Jam Tamat : ")
+    else:
+        # Default balik ke Main Story jika pilih 1 atau langsung Enter
+        if hltb_data['main_story'] > 0:
+            return hltb_data['main_story']
+        else:
+            return get_float_input("Masukkan Estimasi Jam Tamat : ")
+
+
 def menu_add_game():
     """MENU 1: Menambahkan game baru ke dalam koleksi."""
     print_header("BACKLOGIFY - REGISTRASI GAME BACKLOG")
     title = input("Masukkan Judul Game       : ")
-    # Menggunakan get_float_input dari helpers untuk mencegah error jika input berupa teks.
-    price = get_float_input("Masukkan Harga Beli (Rp)   : ")
-    est_hours = get_float_input("Estimasi Jam Tamat : ")
+    
+    print("\n(Catatan: Masukkan nominal harga final yang kamu bayar saat membeli game ini)")
+    price = get_float_input("Masukkan Harga Beli (Rp)  : ")
+    
+    est_hours = get_est_hours_with_fallback(title)
 
     print("\nPilih Mode Lacak Playtime:")
     print("1. Direct Hours (Input angka jam langsung)")
     print("2. Progress Percentage (Input persentase %)")
     mode = input("Pilih Mode (1/2): ")
 
-    # Percabangan mode input untuk menyesuaikan pilihan pengguna berdasarkan jam atau persentase.
     if mode == "1":
         played_hours = get_float_input("Jam Main Saat Ini : ")
     else:
         progress_pct = get_float_input("Estimasi Progress (%) : ")
-        # Mengkonversi persentase progress menjadi estimasi total jam bermain.
         played_hours = (progress_pct / 100) * est_hours
 
-    # Memanggil fungsi dari data.py untuk menyimpan data game.
     game = data.add_game(title, price, est_hours, played_hours)
 
-    # Mengambil total ringkasan data terbaru dari modul analytics dan backlog.
     total_spent = analytics.get_total_spent(data.library)
     total_unplayed = backlog.get_unplayed_value(data.library)
     total_backlog_hours = backlog.get_remaining_hours(data.library)
 
-    # Menampilkan konfirmasi dan statistik backlog terbaru.
     print_header("GAME BERHASIL DITAMBAHKAN KE BACKLOG")
     print(f"Judul Game\t: {game['title']}")
     print(f"Harga Beli\t: Rp {game['price']:,.0f}")
@@ -134,46 +162,84 @@ def menu_evaluate_purchase():
     """MENU 2: Multi-Factor Decision Engine (Fitur Utama)."""
     print_header("BACKLOGIFY - EVALUASI PEMBELIAN GAME BARU")
     new_title = input("Masukkan Judul Game Target : ")
-    new_price_original = get_float_input("Masukkan Harga Asli (Rp)   : ")
-    new_discount_percent = get_float_input("Masukkan Diskon (%)        : ")
-    new_est_hours = get_float_input("Estimasi Jam Tamat (HLTB)  : ")
 
-    # Menghitung harga bersih setelah dipotong diskon.
+    # UX Improvement: Integrasi Info Harga/Diskon seperti Asisten
+    deal = api.get_discount_info(new_title)
+    auto_discount = 0.0
+    estimated_idr_price = None
+
+    if deal is not None:
+        rate = get_usd_to_idr_rate()
+        estimated_idr_price = deal['price_original'] * rate
+        auto_discount = deal['discount_percent']
+        
+        print(f"\n[Sistem mendeteksi kemungkinan diskon sebesar {auto_discount:.0f}%]")
+        print(f"Estimasi Harga Asli (sebelum diskon): ~Rp {estimated_idr_price:,.0f}")
+        
+        # Konfirmasi ke pengguna agar tidak terkesan memaksakan data API
+        konfirmasi = input(f"Apakah benar game ini sedang diskon {auto_discount:.0f}%? (y/n, Enter=y): ").strip().lower()
+        
+        if konfirmasi == 'n':
+            print("(Mengabaikan data sistem, silakan isi secara manual)")
+            auto_discount = 0.0
+            estimated_idr_price = None
+        else:
+            print("(Data otomatis akan disarankan pada isian di bawah)")
+    else:
+        print("\n(Sistem tidak mendeteksi info diskon otomatis, silakan isi manual)")
+
+    print("-" * 65)
+
+    # Input Harga Asli
+    prompt_price = f"Masukkan Harga Asli Rp (Enter untuk pakai saran Rp {estimated_idr_price:,.0f}): " if estimated_idr_price else "Masukkan Harga Asli (Rp)   : "
+    input_price = input(prompt_price).strip()
+    if input_price:
+        new_price_original = float(input_price)
+    else:
+        new_price_original = estimated_idr_price if estimated_idr_price else get_float_input("Masukkan Harga Asli (Rp)   : ")
+
+    # Input Diskon
+    prompt_disc = f"Masukkan Diskon % (Enter untuk pakai saran {auto_discount:.0f}%): " if auto_discount > 0 else "Masukkan Diskon (%)        : "
+    input_disc = input(prompt_disc).strip()
+    if input_disc:
+        new_discount_percent = float(input_disc)
+    else:
+        new_discount_percent = auto_discount
+
+    # Input Jam Tamat
+    new_est_hours = get_est_hours_with_fallback(new_title)
+
+    # Proses Logika Decision Engine (Tetap sama)
     actual_new_price = new_price_original * (1 - (new_discount_percent / 100))
-    # Menghitung estimasi CPH game baru menggunakan fungsi dari analytics.py.
     potential_cph = analytics.calculate_cph(actual_new_price, new_est_hours)
 
-    # Mengambil kondisi backlog saat ini dari backlog.py.
     total_unplayed = backlog.get_unplayed_value(data.library)
     total_rem_hours = backlog.get_remaining_hours(data.library)
     closest_game = backlog.get_priority_game(data.library)
 
-    # Menentukan rekomendasi game yang disarankan untuk diselesaikan terlebih dahulu.
     if closest_game:
         rem_closest = closest_game["est_hours"] - closest_game["played_hours"]
-        action_plan = f"Selesaikan '{closest_game['title']}' dulu (dengan sisa {rem_closest:.0f} jam lagi tamat)."
+        action_plan = f"Selesaikan '{closest_game['title']}' dulu (sisa {rem_closest:.0f} jam)."
     else:
-        action_plan = "Backlog kamu kosong/sudah tamat semua, kamu bebas beli game baru!"
+        action_plan = "Backlog kamu aman, silakan beli game baru!"
 
-    # Memeriksa seluruh kondisi batas dan menampung alasan jika ada pelanggaran limit.
     reasons = []
     if total_unplayed > max_unplayed_value:
-        reasons.append(f"Uang ngendap kamu (Rp {total_unplayed:,.0f}) sudah melebihi dari limit dari yang telah ditentukan Rp {max_unplayed_value:,.0f}")
+        reasons.append(f"Uang ngendap (Rp {total_unplayed:,.0f}) melebihi limit Rp {max_unplayed_value:,.0f}")
     if total_rem_hours > max_backlog_hours:
-        reasons.append(f"Sisa backlog ({total_rem_hours:.0f} jam) sudah melebihi limit dari yang telah ditentukan {max_backlog_hours:.0f} jam")
+        reasons.append(f"Sisa backlog ({total_rem_hours:.0f} jam) melebihi limit {max_backlog_hours:.0f} jam")
     if new_discount_percent < min_discount_percent:
-        reasons.append(f"Diskon ({new_discount_percent:.0f}%) di bawah batas minimal {min_discount_percent:.0f}%")
+        reasons.append(f"Diskon ({new_discount_percent:.0f}%) di bawah toleransi minimal {min_discount_percent:.0f}%")
 
-    # Jika list reasons terisi maka hasil keputusan WAIT, jika kosong maka BUY.
     if reasons:
         decision = "WAIT"
-        reason = " | ".join(reasons) # Menggabungkan daftar alasan dengan pemisah garis tegak.
+        reason = " | ".join(reasons) 
     else:
         decision = "BUY"
-        reason = f"Potensi CPH efisien (Rp {potential_cph:,.0f}/jam) & seluruh indikator backlog masih aman."
+        reason = f"Potensi CPH efisien (Rp {potential_cph:,.0f}/jam) & indikator backlog aman."
         action_plan = "Aman buat dibeli sekarang!"
 
-    # Menampilkan detail hasil evaluasi keputusan.
+    # Output Hasil
     print_header(f"HASIL EVALUASI: {new_title.upper()}")
     print("\n--- DETAIL GAME TARGET ---")
     print(f"Harga Asli\t: Rp {new_price_original:,.0f}")
