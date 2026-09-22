@@ -3,11 +3,10 @@ import data
 import backlog
 import analytics
 import api
-from helpers import get_usd_to_idr_rate
 
 st.set_page_config(page_title="Backlogify", page_icon="🎮", layout="wide")
 
-# --- SISTEM LOGIN SEDERHANA ---
+# --- SISTEM LOGIN ---
 if "logged_in" not in st.session_state:
     st.title("Selamat Datang di Backlogify")
     st.write("Silakan login untuk mengakses data backlog kamu.")
@@ -99,17 +98,23 @@ elif menu == "Registrasi Game Baru":
             if not hltb_data:
                 st.warning("Data tidak ditemukan. Silakan input manual.")
                 
-    # Menampilkan opsi HLTB jika data ditemukan
     est_hours = 0.0
     is_manual = True
     if "hltb_menu1" in st.session_state and st.session_state.hltb_menu1:
-        is_manual = False
         opts = st.session_state.hltb_menu1
-        playstyle = st.selectbox("Pilih Target Penyelesaian", ["Main Story", "Main + Sides", "Completionist", "Input Manual"])
-        if playstyle == "Main Story": est_hours = opts["main_story"]
-        elif playstyle == "Main + Sides": est_hours = opts["main_extra"]
-        elif playstyle == "Completionist": est_hours = opts["completionist"]
-        elif playstyle == "Input Manual": is_manual = True
+        label_opsi = [
+            ("Main Story", opts["main_story"]),
+            ("Main + Sides", opts["main_extra"]),
+            ("Completionist", opts["completionist"]),
+        ]
+        opsi_tersedia = [label for label, jam in label_opsi if jam is not None]
+        if opsi_tersedia:
+            is_manual = False
+            playstyle = st.selectbox("Pilih Target Penyelesaian", opsi_tersedia + ["Input Manual"])
+            if playstyle == "Input Manual":
+                is_manual = True
+            else:
+                est_hours = dict(label_opsi)[playstyle]
             
     if is_manual:
         est_hours = st.number_input("Input Jam Tamat (Manual)", min_value=0.0, step=1.0)
@@ -137,21 +142,20 @@ elif menu == "Registrasi Game Baru":
 elif menu == "Evaluasi Pembelian":
     st.header("Evaluasi Pembelian Game Baru")
     new_title = st.text_input("Judul Game Target")
-    
+
+    if st.session_state.get("eval_title") != new_title:
+        st.session_state.eval_deal = None
+        st.session_state.eval_hltb = None
+
     if st.button("Cek Diskon & Waktu via API"):
         with st.spinner("Mengambil data CheapShark & HLTB..."):
-            deal = api.get_discount_info(new_title)
-            hltb = api.get_estimated_hours(new_title)
-            st.session_state.eval_deal = deal
-            st.session_state.eval_hltb = hltb
-            if deal:
-                st.session_state.rate = get_usd_to_idr_rate()
-                
-    # Menyiapkan nilai default (Auto-fill) jika ada di memory session_state
+            st.session_state.eval_deal = api.get_discount_info(new_title)  
+            st.session_state.eval_hltb = api.get_estimated_hours(new_title)
+            st.session_state.eval_title = new_title
+
     def_price, def_disc = 0.0, 0.0
-    if "eval_deal" in st.session_state and st.session_state.eval_deal:
-        rate = st.session_state.rate
-        def_price = st.session_state.eval_deal['price_original'] * rate
+    if st.session_state.get("eval_deal"):
+        def_price = st.session_state.eval_deal['price_original']
         def_disc = float(st.session_state.eval_deal['discount_percent'])
         st.success(f"Sistem mendeteksi kemungkinan diskon {def_disc:.0f}% (Estimasi harga asli Rp {def_price:,.0f}).")
         st.caption("Jika nominal API kurang akurat (karena Regional Pricing Steam), silakan koreksi angka di bawah.")
@@ -165,14 +169,21 @@ elif menu == "Evaluasi Pembelian":
     st.markdown("---")
     eval_est_hours = 0.0
     is_manual_eval = True
-    if "eval_hltb" in st.session_state and st.session_state.eval_hltb:
-        is_manual_eval = False
+    if st.session_state.get("eval_hltb"):
         opts_eval = st.session_state.eval_hltb
-        playstyle_eval = st.selectbox("Gaya Main (HLTB)", ["Main Story", "Main + Sides", "Completionist", "Input Manual"])
-        if playstyle_eval == "Main Story": eval_est_hours = opts_eval["main_story"]
-        elif playstyle_eval == "Main + Sides": eval_est_hours = opts_eval["main_extra"]
-        elif playstyle_eval == "Completionist": eval_est_hours = opts_eval["completionist"]
-        elif playstyle_eval == "Input Manual": is_manual_eval = True
+        label_opsi_eval = [
+            ("Main Story", opts_eval["main_story"]),
+            ("Main + Sides", opts_eval["main_extra"]),
+            ("Completionist", opts_eval["completionist"]),
+        ]
+        opsi_tersedia_eval = [label for label, jam in label_opsi_eval if jam is not None]
+        if opsi_tersedia_eval:
+            is_manual_eval = False
+            playstyle_eval = st.selectbox("Gaya Main (HLTB)", opsi_tersedia_eval + ["Input Manual"])
+            if playstyle_eval == "Input Manual":
+                is_manual_eval = True
+            else:
+                eval_est_hours = dict(label_opsi_eval)[playstyle_eval]
         
     if is_manual_eval:
         eval_est_hours = st.number_input("Estimasi Jam Tamat", min_value=0.0, step=1.0)
