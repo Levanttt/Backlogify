@@ -6,7 +6,7 @@ import api
 
 st.set_page_config(page_title="Backlogify", page_icon="🎮", layout="wide")
 
-# --- SISTEM LOGIN ---
+# --- SISTEM LOGIN SEDERHANA ---
 if "logged_in" not in st.session_state:
     st.title("Selamat Datang di Backlogify")
     st.write("Silakan login untuk mengakses data backlog kamu.")
@@ -79,10 +79,48 @@ if menu == "Koleksi & Summary":
     st.markdown("---")
     st.subheader("Detail Pustaka Game")
     
-    if data.library:
-        st.dataframe(data.library, use_container_width=True)
-    else:
+    if not data.library:
         st.info("Koleksi backlog kamu masih kosong.")
+    else:
+        st.dataframe(data.library, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("Update Progress / Hapus Game")
+
+        daftar_judul = [f"{i + 1}. {g['title']}" for i, g in enumerate(data.library)]
+        pilihan = st.selectbox("Pilih Game", daftar_judul)
+        index = daftar_judul.index(pilihan)
+        game = data.library[index]
+
+        tab_update, tab_hapus = st.tabs(["Update Progress", "Hapus Game"])
+
+        with tab_update:
+            st.caption(f"Saat ini: {game['played_hours']:.0f}/{game['est_hours']:.0f} Jam ({game['status']})")
+            mode_update = st.radio(
+                "Metode Input:", ["Input jam langsung", "Input persentase progress (%)"], key="mode_update"
+            )
+            if mode_update == "Input jam langsung":
+                new_played = st.number_input(
+                    "Jam Main Sekarang", min_value=0.0, step=1.0,
+                    value=float(game["played_hours"]), key="new_played",
+                )
+            else:
+                progress_awal = int(min(game["played_hours"] / game["est_hours"] * 100, 100)) if game["est_hours"] else 0
+                pct_update = st.slider("Persentase Progress (%)", 0, 100, progress_awal, key="pct_update")
+                new_played = (pct_update / 100) * game["est_hours"]
+                st.caption(f"Setara dengan: **{new_played:.1f} Jam**")
+
+            if st.button("Simpan Update", type="primary"):
+                updated = data.update_played_hours(index, new_played)
+                st.success(f"Progress '{updated['title']}' diupdate, status sekarang: {updated['status']}")
+                st.rerun()
+
+        with tab_hapus:
+            st.warning(f"Hapus '{game['title']}' dari koleksi? Aksi ini tidak bisa dibatalkan.")
+            if st.button("Ya, Hapus Game Ini", type="primary"):
+                data.delete_game(index)
+                st.success(f"'{game['title']}' berhasil dihapus.")
+                st.rerun()
 
 elif menu == "Registrasi Game Baru":
     st.header("Registrasi Game Backlog")
@@ -98,6 +136,7 @@ elif menu == "Registrasi Game Baru":
             if not hltb_data:
                 st.warning("Data tidak ditemukan. Silakan input manual.")
                 
+    # Menampilkan opsi HLTB jika data ditemukan
     est_hours = 0.0
     is_manual = True
     if "hltb_menu1" in st.session_state and st.session_state.hltb_menu1:
@@ -107,6 +146,7 @@ elif menu == "Registrasi Game Baru":
             ("Main + Sides", opts["main_extra"]),
             ("Completionist", opts["completionist"]),
         ]
+        # Cuma tawarin gaya main yang datanya beneran ada di HLTB.
         opsi_tersedia = [label for label, jam in label_opsi if jam is not None]
         if opsi_tersedia:
             is_manual = False
@@ -143,28 +183,23 @@ elif menu == "Evaluasi Pembelian":
     st.header("Evaluasi Pembelian Game Baru")
     new_title = st.text_input("Judul Game Target")
 
+    # Judul berubah tapi tombol belum diklik ulang -> data HLTB lama sudah
+    # tidak relevan, dikosongkan lagi supaya tidak nampilin saran buat judul yang salah.
     if st.session_state.get("eval_title") != new_title:
-        st.session_state.eval_deal = None
         st.session_state.eval_hltb = None
 
-    if st.button("Cek Diskon & Waktu via API"):
-        with st.spinner("Mengambil data CheapShark & HLTB..."):
-            st.session_state.eval_deal = api.get_discount_info(new_title)  
+    if st.button("Cari Estimasi Jam via API"):
+        with st.spinner("Mengambil data HLTB..."):
             st.session_state.eval_hltb = api.get_estimated_hours(new_title)
             st.session_state.eval_title = new_title
+            if not st.session_state.eval_hltb:
+                st.warning("Data tidak ditemukan. Silakan input manual.")
 
-    def_price, def_disc = 0.0, 0.0
-    if st.session_state.get("eval_deal"):
-        def_price = st.session_state.eval_deal['price_original']
-        def_disc = float(st.session_state.eval_deal['discount_percent'])
-        st.success(f"Sistem mendeteksi kemungkinan diskon {def_disc:.0f}% (Estimasi harga asli Rp {def_price:,.0f}).")
-        st.caption("Jika nominal API kurang akurat (karena Regional Pricing Steam), silakan koreksi angka di bawah.")
-        
     col1, col2 = st.columns(2)
     with col1:
-        input_price = st.number_input("Harga Asli (Rp)", value=float(def_price), step=5000.0)
+        input_price = st.number_input("Harga Asli (Rp)", min_value=0.0, step=5000.0)
     with col2:
-        input_disc = st.number_input("Diskon (%)", value=float(def_disc), min_value=0.0, max_value=100.0)
+        input_disc = st.number_input("Diskon (%)", min_value=0.0, max_value=100.0)
         
     st.markdown("---")
     eval_est_hours = 0.0
