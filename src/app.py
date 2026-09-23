@@ -8,14 +8,16 @@ import analytics
 import api
 import backlog
 import data
-from helpers import get_float_input, get_float_input_or_default
+from helpers import get_float_input
 
+# Batas default untuk menentukan keputusan pembelian game.
 max_backlog_hours = 50.0
 min_discount_percent = 50.0
 max_unplayed_value = 1000000.0
 
 def main():
     """Menjalankan navigasi menu utama."""
+    # Dibuat variabel global agar nilainya bisa diakses dan diperbarui oleh fungsi lain.
     global max_backlog_hours, min_discount_percent, max_unplayed_value
 
     name = input("Masukkan Nama Profile: ")
@@ -40,6 +42,7 @@ def main():
         print("5. Keluar")
         choice = input("Pilih Menu (1-5): ")
 
+        # Memanggil fungsi yang sesuai dengan nomor pilihan pengguna.
         if choice == "1":
             menu_add_game()
         elif choice == "2":
@@ -100,6 +103,7 @@ def get_est_hours_with_fallback(title):
         ("Main + Sides", hltb_data["main_extra"]),
         ("Completionist", hltb_data["completionist"]),
     ]
+    # Cuma tampilin opsi yang datanya beneran ada di HLTB.
     pilihan = [(label, jam) for label, jam in label_gaya_main if jam is not None]
 
     if not pilihan:
@@ -166,27 +170,13 @@ def menu_evaluate_purchase():
     """MENU 2: Multi-Factor Decision Engine (Fitur Utama)."""
     print_header("BACKLOGIFY - EVALUASI PEMBELIAN GAME BARU")
     new_title = input("Masukkan Judul Game Target : ")
-    deal = api.get_discount_info(new_title)
+    new_price_original = get_float_input("Masukkan Harga Asli (Rp)   : ")
+    new_discount_percent = get_float_input("Masukkan Diskon (%)        : ")
 
-    print("-" * 65)
-
-    if deal is not None:
-        print(f"[CheapShark: diskon {deal['discount_percent']:.0f}%, harga asli sekitar "
-                f"Rp {deal['price_original']:,.0f} - referensi toko luar, harga lokal bisa beda]")
-        new_price_original = get_float_input_or_default(
-            f"Harga Asli Rp (Enter = Rp {deal['price_original']:,.0f}): ",
-            deal["price_original"],
-        )
-        new_discount_percent = get_float_input_or_default(
-            f"Diskon % (Enter = {deal['discount_percent']:.0f}%): ",
-            deal["discount_percent"],
-        )
-    else:
-        print("(Sistem tidak mendeteksi info diskon otomatis, silakan isi manual)")
-        new_price_original = get_float_input("Masukkan Harga Asli (Rp)   : ")
-        new_discount_percent = get_float_input("Masukkan Diskon (%)        : ")
-
+    # Input Jam Tamat
     new_est_hours = get_est_hours_with_fallback(new_title)
+
+    # Proses Logika Decision Engine (Tetap sama)
     actual_new_price = new_price_original * (1 - (new_discount_percent / 100))
     potential_cph = analytics.calculate_cph(actual_new_price, new_est_hours)
 
@@ -235,17 +225,19 @@ def menu_evaluate_purchase():
 
 
 def menu_view_summary():
-    """MENU 3: Menampilkan tabel koleksi dan ringkasan status."""
+    """MENU 3: Menampilkan tabel koleksi, ringkasan status, dan opsi update progress."""
     total_backlog_hours = backlog.get_remaining_hours(data.library)
     total_unplayed_value = backlog.get_unplayed_value(data.library)
     total_spent = analytics.get_total_spent(data.library)
 
+    # Menentukan status kesehatan finansial koleksi.
     if total_unplayed_value > max_unplayed_value:
         status_financial = "[MELEBIHI LIMIT!]"
     else:
         status_financial = "[AMAN]"
 
     print_header("KOLEKSI BACKLOG & RINGKASAN STATUS")
+    # Memberikan output dalam bentuk tabel menggunakan spesifikasi lebar kolom.
     print(f"{'No':<3} | {'Judul Game':<18} | {'Harga':<10} | {'Playtime':<10} | {'Status':<12}")
     print("-" * 65)
     # Melakukan pengecekan daftar game yang dimiliki berdasarkan nomor urut.
@@ -256,6 +248,72 @@ def menu_view_summary():
     print(f"Total Nilai Koleksi\t: Rp {total_spent:,.0f}")
     print(f"Total Uang Ngendap\t: Rp {total_unplayed_value:,.0f} / Limit Kamu Rp {max_unplayed_value:,.0f} {status_financial}")
     print(f"Total Sisa Jam Backlog\t: {total_backlog_hours:.1f} Jam / Limit Kamu {max_backlog_hours:.0f} Jam")
+
+    # Kalau koleksinya kosong, tidak ada yang bisa diupdate atau dihapus.
+    if data.library:
+        print("\n1. Update Progress Game")
+        print("2. Hapus Game")
+        print("3. Kembali ke Menu Utama")
+        aksi = input("Pilih (1-3, Enter untuk kembali): ").strip()
+
+        if aksi == "1":
+            update_game_progress()
+        elif aksi == "2":
+            delete_game_from_library()
+
+
+def _pilih_game(prompt):
+    """Minta nomor game ke user, balikin index-nya (dari 0) kalau valid,
+    None kalau tidak. Dipakai bareng oleh update_game_progress dan
+    delete_game_from_library biar validasinya tidak ditulis dua kali."""
+    nomor = input(prompt).strip()
+    if nomor.isdigit() and 1 <= int(nomor) <= len(data.library):
+        return int(nomor) - 1
+    print("Nomor tidak valid.")
+    return None
+
+
+def update_game_progress():
+    """Update playtime salah satu game di koleksi (dipanggil dari Menu 3).
+    Status dihitung ulang otomatis lewat determine_status di data.py, jadi
+    tidak bisa jadi tidak sinkron sama playtime-nya."""
+    index = _pilih_game(f"Pilih nomor game (1-{len(data.library)}): ")
+    if index is None:
+        return
+
+    game = data.library[index]
+
+    print(f"\nUpdate progress '{game['title']}' (saat ini {game['played_hours']:.0f}/{game['est_hours']:.0f} Jam)")
+    print("1. Direct Hours (Input angka jam langsung)")
+    print("2. Progress Percentage (Input persentase %)")
+    mode = input("Pilih Mode (1/2): ")
+
+    # Sama seperti Menu 1, dua cara input playtime, salah satu dipilih user.
+    if mode == "1":
+        played_hours = get_float_input("Jam Main Saat Ini : ")
+    else:
+        progress_pct = get_float_input("Estimasi Progress (%) : ")
+        played_hours = (progress_pct / 100) * game["est_hours"]
+
+    updated = data.update_played_hours(index, played_hours)
+    print(f"\nBerhasil diupdate! Status '{updated['title']}' sekarang: {updated['status']}")
+
+
+def delete_game_from_library():
+    """Hapus salah satu game dari koleksi (dipanggil dari Menu 3). Minta
+    konfirmasi dulu karena aksi ini tidak bisa dibatalkan."""
+    index = _pilih_game(f"Pilih nomor game yang mau dihapus (1-{len(data.library)}): ")
+    if index is None:
+        return
+
+    game = data.library[index]
+    konfirmasi = input(f"Yakin mau hapus '{game['title']}'? Ini tidak bisa dibatalkan. (y/N): ").strip().lower()
+    if konfirmasi != "y":
+        print("Dibatalkan.")
+        return
+
+    data.delete_game(index)
+    print(f"\n'{game['title']}' berhasil dihapus dari koleksi.")
 
 
 def menu_set_thresholds():
