@@ -2,12 +2,11 @@ import streamlit as st
 import data
 import backlog
 import analytics
-import api
 import helpers_web as hw
 
 st.set_page_config(page_title="Backlogify", page_icon="🎮", layout="wide")
 
-# --- SISTEM LOGIN SEDERHANA ---
+# --- SISTEM LOGIN ---
 if "logged_in" not in st.session_state:
     st.title("Selamat Datang di Backlogify")
     st.write("Silakan login untuk mengakses data backlog kamu.")
@@ -71,11 +70,7 @@ if st.sidebar.button("Logout"):
     st.session_state.clear()
     st.rerun()
 
-# Tampilkan flash message dari aksi sebelumnya (harus di luar blok Logout)
-hw.render_flash()
-
-# --- KONTEN MENU ---
-
+# --- KONTEN MENU LIBRARY ---
 if menu == "Koleksi & Summary":
     st.header("Koleksi Backlog & Ringkasan Status")
 
@@ -143,6 +138,8 @@ if menu == "Koleksi & Summary":
                     default=int(game["played_hours"]),
                 )
             else:
+                # dibatasi max 100 & dijaga kalau est_hours 0, biar slider-nya
+                # gak crash atau nampilin progress yang ngaco
                 progress_awal = int(
                     min(game["played_hours"] / game["est_hours"] * 100, 100)
                 ) if game["est_hours"] else 0
@@ -169,65 +166,12 @@ if menu == "Koleksi & Summary":
                 "otomatis, atau cek durasi full walkthrough di YouTube."
             )
 
-            target_key = f"target_hltb_{index}"
-            searched_key = f"target_searched_{index}"
-            title_key = f"target_title_{index}"
-
-            if st.session_state.get(title_key) != game["title"]:
-                st.session_state[target_key] = None
-                st.session_state[searched_key] = False
-
-            if st.button("Berikan Opsi Gaya Main Otomatis", key=f"btn_hltb_target_{index}"):
-                with st.spinner("Mengambil data estimasi..."):
-                    st.session_state[target_key] = api.get_estimated_hours(game["title"])
-                    st.session_state[title_key] = game["title"]
-                    st.session_state[searched_key] = True
-
-            if (st.session_state.get(searched_key)
-                    and st.session_state.get(title_key) == game["title"]
-                    and st.session_state.get(target_key) is None):
-                st.warning(
-                    "Gagal ambil data estimasi otomatis. Kemungkinan: judul "
-                    "tidak ada di database, koneksi lambat, atau situsnya "
-                    "diblokir jaringan kamu. Silakan input manual di bawah."
-                )
-
-            new_target = None
-            is_manual_target = True
-
-            if st.session_state.get(target_key):
-                opts_target = st.session_state[target_key]
-                label_opsi_target = [
-                    ("Main Story", opts_target["main_story"]),
-                    ("Main + Sides", opts_target["main_extra"]),
-                    ("Completionist", opts_target["completionist"]),
-                ]
-                opsi_tersedia_target = [
-                    f"{label} - {jam:.0f} jam"
-                    for label, jam in label_opsi_target
-                    if jam is not None
-                ]
-
-                if opsi_tersedia_target:
-                    is_manual_target = False
-                    pilihan_target = st.selectbox(
-                        "Pilih Gaya Main",
-                        opsi_tersedia_target + ["Input Manual"],
-                        key=f"select_target_{index}",
-                    )
-                    if pilihan_target == "Input Manual":
-                        is_manual_target = True
-                    else:
-                        label_terpilih_target = pilihan_target.rsplit(" - ", 1)[0]
-                        new_target = dict(label_opsi_target)[label_terpilih_target]
-
-            if is_manual_target:
-                st.caption("Atau")
-                new_target = hw.input_jam(
-                    "Target Estimasi Jam Tamat yang Baru",
-                    key=f"manual_target_{index}",
-                    default=int(game["est_hours"]),
-                )
+            new_target, _ = hw.pilih_estimasi_jam(
+                game["title"],
+                key_prefix=f"target_{index}",
+                default_manual=game["est_hours"],
+                label_manual="Target Estimasi Jam Tamat yang Baru",
+            )
 
             st.info(
                 "Kalau target baru lebih kecil dari playtime saat ini, "
@@ -241,9 +185,7 @@ if menu == "Koleksi & Summary":
                 else:
                     updated = data.update_est_hours(index, new_target)
                     hw.flash_success(f"Target '{updated['title']}' berhasil diupdate.")
-                    for k in [target_key, searched_key, title_key]:
-                        if k in st.session_state:
-                            del st.session_state[k]
+                    hw.reset_pilihan_estimasi(f"target_{index}")
                     st.rerun()
 
         # ---------- Tab 3: Hapus Game ----------
@@ -281,63 +223,7 @@ elif menu == "Registrasi Game Baru":
         "mendekati waktu tamat game tersebut."
     )
 
-    if st.session_state.get("menu1_title") != title:
-        st.session_state.hltb_menu1 = None
-        st.session_state.hltb_menu1_searched = False
-
-    if st.button("Berikan Opsi Gaya Main Otomatis"):
-        if not title.strip():
-            st.error("Isi judul game dulu sebelum minta opsi gaya main!")
-        else:
-            with st.spinner("Sedang mengambil data estimasi..."):
-                st.session_state.hltb_menu1 = api.get_estimated_hours(title.strip())
-                st.session_state.menu1_title = title.strip()
-                st.session_state.hltb_menu1_searched = True
-
-    if (st.session_state.get("hltb_menu1_searched")
-            and st.session_state.get("menu1_title") == title
-            and st.session_state.get("hltb_menu1") is None):
-        st.warning(
-            "Gagal ambil data estimasi otomatis. Kemungkinan: judul yang kamu cari tidak ada "
-            "di database, koneksi lambat, atau situsnya diblokir oleh jaringan kamu. "
-            "Silakan input manual di bawah."
-        )
-
-    est_hours = 0.0
-    is_manual = True
-
-    if st.session_state.get("hltb_menu1"):
-        opts = st.session_state.hltb_menu1
-        label_opsi = [
-            ("Main Story", opts["main_story"]),
-            ("Main + Sides", opts["main_extra"]),
-            ("Completionist", opts["completionist"]),
-        ]
-        opsi_tersedia = [
-            f"{label} - {jam:.0f} jam"
-            for label, jam in label_opsi
-            if jam is not None
-        ]
-
-        if opsi_tersedia:
-            is_manual = False
-            playstyle = st.selectbox(
-                "Pilih Gaya Main",
-                opsi_tersedia + ["Input Manual"],
-                key=f"menu1_playstyle_{v}",
-            )
-            if playstyle == "Input Manual":
-                is_manual = True
-            else:
-                label_terpilih = playstyle.rsplit(" - ", 1)[0]
-                est_hours = dict(label_opsi)[label_terpilih]
-
-    if is_manual:
-        st.caption("Atau")
-        est_hours = hw.input_jam(
-            "Masukkan Target Estimasi Kamu Bermain Game Ini",
-            key=f"menu1_manual_hours_{v}",
-        )
+    est_hours, _ = hw.pilih_estimasi_jam(title, key_prefix="menu1")
 
     st.markdown("---")
     st.markdown("**Lacak Playtime Saat Ini**")
@@ -370,9 +256,7 @@ elif menu == "Registrasi Game Baru":
             data.add_game(title, price, est_hours, played_hours)
             hw.flash_success(f"'{title}' berhasil ditambahkan ke backlog kamu.")
 
-            for k in ["hltb_menu1", "menu1_title", "hltb_menu1_searched"]:
-                if k in st.session_state:
-                    del st.session_state[k]
+            hw.reset_pilihan_estimasi("menu1")
 
             # Naikin versi -> semua widget Menu 1 bakal ke-reset
             st.session_state.menu1_version += 1
@@ -397,62 +281,7 @@ elif menu == "Evaluasi Pembelian":
         "mendekati waktu tamat game tersebut."
     )
 
-    if st.session_state.get("eval_title") != new_title:
-        st.session_state.eval_hltb = None
-        st.session_state.eval_hltb_searched = False
-
-    if st.button("Berikan Opsi Gaya Main Otomatis"):
-        if not new_title.strip():
-            st.error("Isi judul game dulu sebelum minta opsi gaya main!")
-        else:
-            with st.spinner("Mengambil data estimasi..."):
-                st.session_state.eval_hltb = api.get_estimated_hours(new_title.strip())
-                st.session_state.eval_title = new_title.strip()
-                st.session_state.eval_hltb_searched = True
-
-    if (st.session_state.get("eval_hltb_searched")
-            and st.session_state.get("eval_title") == new_title
-            and st.session_state.get("eval_hltb") is None):
-        st.warning(
-            "Gagal ambil data estimasi otomatis. Kemungkinan: judul tidak ada "
-            "di database, koneksi lambat, atau situsnya diblokir jaringan kamu. "
-            "Silakan input manual di bawah."
-        )
-
-    eval_est_hours = 0.0
-    is_manual_eval = True
-
-    if st.session_state.get("eval_hltb"):
-        opts_eval = st.session_state.eval_hltb
-        label_opsi_eval = [
-            ("Main Story", opts_eval["main_story"]),
-            ("Main + Sides", opts_eval["main_extra"]),
-            ("Completionist", opts_eval["completionist"]),
-        ]
-        opsi_tersedia_eval = [
-            f"{label} - {jam:.0f} jam"
-            for label, jam in label_opsi_eval
-            if jam is not None
-        ]
-
-        if opsi_tersedia_eval:
-            is_manual_eval = False
-            pilihan = st.selectbox(
-                "Pilih Gaya Main",
-                opsi_tersedia_eval + ["Input Manual"],
-            )
-
-            if pilihan == "Input Manual":
-                is_manual_eval = True
-            else:
-                label_terpilih = pilihan.rsplit(" - ", 1)[0]
-                eval_est_hours = dict(label_opsi_eval)[label_terpilih]
-
-    if is_manual_eval:
-        st.caption("Atau")
-        eval_est_hours = hw.input_jam(
-            "Masukkan Target Estimasi Kamu Bermain Game Ini"
-        )
+    eval_est_hours, _ = hw.pilih_estimasi_jam(new_title, key_prefix="eval")
 
     st.markdown("---")
     if st.button("Jalankan Evaluasi Decision Engine", type="primary"):

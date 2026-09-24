@@ -17,7 +17,6 @@ max_unplayed_value = 1000000.0
 
 def main():
     """Menjalankan navigasi menu utama."""
-    # Dibuat variabel global agar nilainya bisa diakses dan diperbarui oleh fungsi lain.
     global max_backlog_hours, min_discount_percent, max_unplayed_value
 
     name = input("Masukkan Nama Profile: ")
@@ -70,7 +69,6 @@ def setup_thresholds_first_time():
     print("2. Atur Custom")
     choice = input("Pilih (1/2): ")
 
-    # Custom pakai ulang menu_set_thresholds yang sudah ada.
     if choice == "2":
         menu_set_thresholds()
 
@@ -176,7 +174,7 @@ def menu_evaluate_purchase():
     # Input Jam Tamat
     new_est_hours = get_est_hours_with_fallback(new_title)
 
-    # Proses Logika Decision Engine (Tetap sama)
+    # Proses Logika Decision Engine 
     actual_new_price = new_price_original * (1 - (new_discount_percent / 100))
     potential_cph = analytics.calculate_cph(actual_new_price, new_est_hours)
 
@@ -200,7 +198,7 @@ def menu_evaluate_purchase():
 
     if reasons:
         decision = "WAIT"
-        reason = " | ".join(reasons) 
+        reason = " | ".join(reasons)
     else:
         decision = "BUY"
         reason = f"Potensi CPH efisien (Rp {potential_cph:,.0f}/jam) & indikator backlog aman."

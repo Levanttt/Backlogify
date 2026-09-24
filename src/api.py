@@ -13,31 +13,39 @@ import concurrent.futures
 
 from howlongtobeatpy import HowLongToBeat
 
-# howlongtobeatpy sendiri pakai timeout 60 detik PER request internal, dan satu
-# search() bisa berupa beberapa request berantai. Kalau tidak dibatasi dari sini,
-# koneksi yang lambat/diblokir bisa bikin app kelihatan hang bermenit-menit.
+# Pembatasan penarikan data 
 HLTB_TIMEOUT_SECONDS = 15
 
 
 def get_estimated_hours(title):
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     try:
-        results = HowLongToBeat().search(title)
+        future = executor.submit(HowLongToBeat().search, title)
+        results = future.result(timeout=HLTB_TIMEOUT_SECONDS)
+
         if not results:
             return None
+
+        # judul dari user gaperlu exact match tiap katanya dengan database HLTB, jadi ambil hasil yang paling mirip aja
         best_match = max(results, key=lambda r: r.similarity)
         return {
             "main_story": float(best_match.main_story) if best_match.main_story else None,
             "main_extra": float(best_match.main_extra) if best_match.main_extra else None,
             "completionist": float(best_match.completionist) if best_match.completionist else None,
         }
+    except concurrent.futures.TimeoutError:
+        print(f"[HLTB ERROR] Timeout setelah {HLTB_TIMEOUT_SECONDS} detik")
+        return None
     except Exception as e:
         print(f"[HLTB ERROR] {type(e).__name__}: {e}")
         return None
+    finally:
+        # wait=False: jangan nunggu request yang nyangkut di background selesai,
+        executor.shutdown(wait=False)
 
 
 if __name__ == "__main__":
-    # Contoh pemanggilan manual, buat ngetes modul ini sendirian
-    # (jalankan: python api.py)
+    # Contoh pemanggilan manual, buat ngetes modul ini
     test_title = "Red Dead Redemption 2"
 
     print(f"Testing get_estimated_hours('{test_title}')...")
