@@ -5,12 +5,15 @@ Owner: Billy (Dev 1)
 """
 
 def get_unplayed_value(library):
-    """Menghitung total harga game yang belum pernah dimainkan."""
+    """
+    Menghitung total nilai (Rp) dari game yang belum tamat.
+    Termasuk game yang statusnya 'Unplayed' maupun 'In-Progress'.
+    """
     total = 0
-    # Memeriksa setiap game satu per satu pake looping, lalu dijumlahkan harga yang jam mainnya masih 0.
     for game in library:
-        if game["played_hours"] == 0:
-            total += game["price"]
+        # Menghitung semua game kecuali yang sudah Completed
+        if game['status'] != 'Completed':
+            total += game['price']
     return total
 
 
@@ -30,7 +33,7 @@ def get_priority_game(library):
     priority_game = None
     smallest_remaining = None
 
-    # Menelusuri seluruh game untuk mencari kandidat dengan sisa jam bermain paling kecil.
+    # Mencari seluruh game untuk mencari kandidat dengan sisa jam bermain paling kecil.
     for game in library:
         if game["status"] != "Completed":
             # Menghitung sisa jam bermain dari game tersebut.
