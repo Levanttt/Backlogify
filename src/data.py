@@ -98,8 +98,8 @@ def add_game(title, price, est_hours, played_hours):
     game = {
         "title": title,
         "price": price,
-        "est_hours": est_hours,
-        "played_hours": played_hours,
+        "played_hours": played_hours,    
+        "est_hours": est_hours,           
         "status": determine_status(played_hours, est_hours),
     }
     library.append(game)
@@ -116,6 +116,14 @@ def update_played_hours(index, played_hours):
     save_current_profile()
     return game
 
+def update_est_hours(index, est_hours):
+    """Mengubah target estimasi jam tamat game di posisi `index` (dari 0),
+    menghitung ulang statusnya lewat determine_status, lalu menyimpan ke JSON."""
+    game = library[index]
+    game["est_hours"] = est_hours
+    game["status"] = determine_status(game["played_hours"], est_hours)
+    save_current_profile()
+    return game
 
 def delete_game(index):
     """Menghapus game di posisi `index` (dari 0) dari library, lalu
@@ -123,3 +131,4 @@ def delete_game(index):
     removed = library.pop(index)
     save_current_profile()
     return removed
+
