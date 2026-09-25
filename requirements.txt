@@ -1,2 +1,3 @@
 howlongtobeatpy
 streamlit
+supabase
