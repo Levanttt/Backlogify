@@ -6,17 +6,22 @@ Owner: Billy (Dev 1)
 import json
 import os
 
+import streamlit as st
+
 # Menentukan lokasi penyimpanan dan folder data/ 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 DATA_FILE = os.path.join(DATA_DIR, "backlog.json")
 
 os.makedirs(DATA_DIR, exist_ok=True)
+_STATE_KEYS = ("current_profile", "library", "saved_thresholds", "is_new_profile")
 
-current_profile = None
-library = []
-saved_thresholds = None
-is_new_profile = False
+
+def __getattr__(name):
+    """Membaca state profil milik session yang sedang berjalan."""
+    if name in _STATE_KEYS:
+        return st.session_state.get(name)
+    raise AttributeError(name)
 
 
 def load_all_profiles():
@@ -45,41 +50,43 @@ def find_profile_name(profiles, name):
 
 def login(name):
     """Melakukan proses login berdasarkan nama profile dan memuat datanya."""
-    global current_profile, library, saved_thresholds, is_new_profile
     profiles = load_all_profiles()
     matched = find_profile_name(profiles, name)
 
     # Jika profil ditemukan, maka muat data library dan threshold yang telah tersimpan
     if matched:
-        current_profile = matched 
-        library = profiles[matched]["library"]  
-        saved_thresholds = profiles[matched]["thresholds"]  
-        is_new_profile = False  
+        st.session_state.update(
+            current_profile=matched,
+            library=profiles[matched]["library"],
+            saved_thresholds=profiles[matched]["thresholds"],
+            is_new_profile=False,
+        )
 
     # Jika profil tidak ditemukan / Profil baru
     else:
-        current_profile = name  
-        library = []  
-        saved_thresholds = None  
-        is_new_profile = True
+        st.session_state.update(
+            current_profile=name,
+            library=[],
+            saved_thresholds=None,
+            is_new_profile=True,
+        )
 
-    return library
+    return st.session_state.library
 
 
 def save_current_profile():
     """Menyimpan data library dan threshold milik profile yang sedang aktif."""
     profiles = load_all_profiles()
-    profiles[current_profile] = {
-        "library": library,
-        "thresholds": saved_thresholds,
+    profiles[st.session_state.current_profile] = {
+        "library": st.session_state.library,
+        "thresholds": st.session_state.saved_thresholds,
     }
     save_all_profiles(profiles)
 
 
 def save_thresholds(thresholds):
     """Menyimpan pengaturan threshold milik profile yang sedang aktif."""
-    global saved_thresholds
-    saved_thresholds = thresholds
+    st.session_state.saved_thresholds = thresholds
     save_current_profile()
 
 
@@ -102,7 +109,7 @@ def add_game(title, price, est_hours, played_hours):
         "est_hours": est_hours,           
         "status": determine_status(played_hours, est_hours),
     }
-    library.append(game)
+    st.session_state.library.append(game)
     save_current_profile()
     return game
 
@@ -110,7 +117,7 @@ def add_game(title, price, est_hours, played_hours):
 def update_played_hours(index, played_hours):
     """Mengubah jam main game di posisi `index` (dari 0), menghitung ulang
     status-nya lewat determine_status, lalu menyimpan ke file JSON."""
-    game = library[index]
+    game = st.session_state.library[index]
     game["played_hours"] = played_hours
     game["status"] = determine_status(played_hours, game["est_hours"])
     save_current_profile()
@@ -119,7 +126,7 @@ def update_played_hours(index, played_hours):
 def update_est_hours(index, est_hours):
     """Mengubah target estimasi jam tamat game di posisi `index` (dari 0),
     menghitung ulang statusnya lewat determine_status, lalu menyimpan ke JSON."""
-    game = library[index]
+    game = st.session_state.library[index]
     game["est_hours"] = est_hours
     game["status"] = determine_status(game["played_hours"], est_hours)
     save_current_profile()
@@ -128,7 +135,6 @@ def update_est_hours(index, est_hours):
 def delete_game(index):
     """Menghapus game di posisi `index` (dari 0) dari library, lalu
     menyimpan perubahan ke file JSON."""
-    removed = library.pop(index)
+    removed = st.session_state.library.pop(index)
     save_current_profile()
     return removed
-

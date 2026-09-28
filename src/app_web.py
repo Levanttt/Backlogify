@@ -50,7 +50,6 @@ if st.session_state.get("needs_setup", False):
                 "min_discount_percent": new_disc,
             }
             data.save_thresholds(threshold_data)
-            data.saved_thresholds = threshold_data
             st.session_state.needs_setup = False
             st.rerun()
 
@@ -85,7 +84,7 @@ if menu == "Koleksi & Summary":
     col4.metric("Sisa Jam Backlog", f"{total_hours:.0f} Jam")
 
     st.markdown("---")
-    st.subheader("Detail Pustaka Game")
+    st.subheader("Detail Library Game")
 
     if not data.library:
         st.info("Koleksi backlog kamu masih kosong.")

@@ -6,14 +6,15 @@ Owner: Billy (Dev 1)
 
 def get_unplayed_value(library):
     """
-    Menghitung total nilai (Rp) dari game yang belum tamat.
-    Termasuk game yang statusnya 'Unplayed' maupun 'In-Progress'.
+    Menghitung total nilai (Rp) yang belum "kepakai", proporsional
+    terhadap sisa jam yang belum dimainkan dari tiap game.
     """
     total = 0
     for game in library:
-        # Menghitung semua game kecuali yang sudah Completed
-        if game['status'] != 'Completed':
-            total += game['price']
+        if game["est_hours"] > 0:
+            sisa_jam = max(0, game["est_hours"] - game["played_hours"])
+            rasio_sisa = sisa_jam / game["est_hours"]
+            total += game["price"] * rasio_sisa
     return total
 
 
