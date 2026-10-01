@@ -15,33 +15,36 @@ from howlongtobeatpy import HowLongToBeat
 
 # Pembatasan penarikan data 
 HLTB_TIMEOUT_SECONDS = 15
+HLTB_MAX_ATTEMPTS = 2
 
 
 def get_estimated_hours(title):
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    try:
-        future = executor.submit(HowLongToBeat().search, title)
-        results = future.result(timeout=HLTB_TIMEOUT_SECONDS)
+    attempt = 0
+    while attempt < HLTB_MAX_ATTEMPTS:
+        attempt += 1
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        try:
+            future = executor.submit(HowLongToBeat().search, title)
+            results = future.result(timeout=HLTB_TIMEOUT_SECONDS)
 
-        if not results:
-            return None
+            if not results:
+                return None  # judul memang tidak ada di HLTB, mengulang tidak akan membantu
 
-        # judul dari user gaperlu exact match tiap katanya dengan database HLTB, jadi ambil hasil yang paling mirip aja
-        best_match = max(results, key=lambda r: r.similarity)
-        return {
-            "main_story": float(best_match.main_story) if best_match.main_story else None,
-            "main_extra": float(best_match.main_extra) if best_match.main_extra else None,
-            "completionist": float(best_match.completionist) if best_match.completionist else None,
-        }
-    except concurrent.futures.TimeoutError:
-        print(f"[HLTB ERROR] Timeout setelah {HLTB_TIMEOUT_SECONDS} detik")
-        return None
-    except Exception as e:
-        print(f"[HLTB ERROR] {type(e).__name__}: {e}")
-        return None
-    finally:
-        # wait=False: jangan nunggu request yang nyangkut di background selesai,
-        executor.shutdown(wait=False)
+            # judul dari user gaperlu exact match tiap katanya dengan database HLTB, jadi ambil hasil yang paling mirip aja
+            best_match = max(results, key=lambda r: r.similarity)
+            return {
+                "main_story": float(best_match.main_story) if best_match.main_story else None,
+                "main_extra": float(best_match.main_extra) if best_match.main_extra else None,
+                "completionist": float(best_match.completionist) if best_match.completionist else None,
+            }
+        except concurrent.futures.TimeoutError:
+            print(f"[HLTB ERROR] Timeout setelah {HLTB_TIMEOUT_SECONDS} detik (percobaan {attempt}/{HLTB_MAX_ATTEMPTS})")
+        except Exception as e:
+            print(f"[HLTB ERROR] {type(e).__name__}: {e} (percobaan {attempt}/{HLTB_MAX_ATTEMPTS})")
+        finally:
+            # wait=False: jangan nunggu request yang nyangkut di background selesai,
+            executor.shutdown(wait=False)
+    return None
 
 
 if __name__ == "__main__":
