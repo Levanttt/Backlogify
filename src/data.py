@@ -113,6 +113,12 @@ def add_game(title, price, est_hours, played_hours):
     save_current_profile()
     return game
 
+def is_duplicate_title(title):
+    """Mengecek apakah judul sudah ada di library (tidak peduli huruf besar/kecil)."""
+    for game in st.session_state.library:
+        if game["title"].strip().lower() == title.strip().lower():
+            return True
+    return False
 
 def update_played_hours(index, played_hours):
     """Mengubah jam main game di posisi `index` (dari 0), menghitung ulang

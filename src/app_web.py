@@ -249,6 +249,9 @@ elif menu == "Registrasi Game Baru":
         elif est_hours <= 0:
             hw.flash_error("Estimasi jam tamat harus lebih dari 0.")
             st.rerun()
+        elif data.is_duplicate_title(title):
+            hw.flash_error(f"'{title}' sudah ada di library kamu.")
+            st.rerun()
         else:
             data.add_game(title, price, est_hours, played_hours)
             hw.flash_success(f"'{title}' berhasil ditambahkan ke backlog kamu.")
