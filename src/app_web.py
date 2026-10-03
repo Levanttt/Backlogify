@@ -266,13 +266,13 @@ elif menu == "Registrasi Game Baru":
 elif menu == "Evaluasi Pembelian":
     st.header("Evaluasi Pembelian Game Baru")
     new_title = st.text_input("Masukkan Judul Game Target Kamu")
- 
+
     col1, col2 = st.columns(2)
     with col1:
         input_price = hw.input_rupiah("Masukkan Harga Asli Saat Ini (Rp)")
     with col2:
         input_disc = hw.input_persen("Masukkan Harga Diskon Saat Ini (%)")
- 
+
     st.markdown("---")
     st.markdown("### Masukkan Rencana Main / Estimasi Jam Tamat")
     st.caption(
@@ -280,24 +280,26 @@ elif menu == "Evaluasi Pembelian":
         "durasi lewat video full walkthrough di YouTube, biasanya durasinya "
         "mendekati waktu tamat game tersebut."
     )
- 
+
     eval_est_hours, _ = hw.pilih_estimasi_jam(new_title, key_prefix="eval")
- 
+
     st.markdown("---")
     if st.button("Jalankan Evaluasi Decision Engine", type="primary"):
-        if input_price <= 0 or eval_est_hours <= 0:
-            st.error("Harga dan Estimasi Jam tidak boleh 0!")
+        if not new_title.strip():
+            st.error("Judul game tidak boleh kosong!")
+        elif input_price <= 0 or eval_est_hours <= 0:
+            st.error("Harga atau Estimasi Jam tidak boleh 0!")
         else:
             actual_price = input_price * (1 - (input_disc / 100))
             pot_cph = analytics.calculate_cph(actual_price, eval_est_hours)
- 
-            tot_unplayed = backlog.get_unplayed_value(data.library)
-            tot_rem_hours = backlog.get_remaining_hours(data.library)
- 
+
+            tot_unplayed = backlog.get_unplayed_value(data.library) + actual_price
+            tot_rem_hours = backlog.get_remaining_hours(data.library) + eval_est_hours
+
             max_unplay = data.saved_thresholds.get("max_unplayed_value", 1000000.0)
             max_hrs = data.saved_thresholds.get("max_backlog_hours", 50.0)
             min_disc = data.saved_thresholds.get("min_discount_percent", 50.0)
- 
+
             # Game yang paling deket kelar di backlog kamu, buat saran
             closest_game = backlog.get_priority_game(data.library)
             if closest_game:
@@ -305,7 +307,7 @@ elif menu == "Evaluasi Pembelian":
                 action_plan = f"Selesaikan '{closest_game['title']}' dulu (sisa {rem_closest:.0f} jam)."
             else:
                 action_plan = "Backlog kamu aman, silakan beli game baru!"
- 
+
             reasons = []
             if tot_unplayed > max_unplay:
                 reasons.append(f"Uang ngendap kamu (Rp {tot_unplayed:,.0f}) sudah melampaui batas yang ditetapkan.")
@@ -313,9 +315,9 @@ elif menu == "Evaluasi Pembelian":
                 reasons.append(f"Sisa waktu backlog kamu ({tot_rem_hours:.0f} Jam) sudah melampaui batas yang ditetapkan.")
             if input_disc < min_disc:
                 reasons.append(f"Diskon game ini masih belum mencapai batas minimal yang kamu tetapkan ({min_disc:.0f}%).")
- 
-            st.markdown("### Hasil Keputusan")
- 
+
+            st.markdown(f"### Hasil Keputusan untuk {new_title.strip()}")
+
             if reasons:
                 st.error("WAIT (TUNDA PEMBELIAN)")
                 st.write("**Alasannya:**")
@@ -326,9 +328,9 @@ elif menu == "Evaluasi Pembelian":
                 st.write("**Alasannya:**")
                 st.info("Kondisi backlog kamu aman dan indikator diskon memenuhi standar yang ditetapkan.")
                 action_plan = "Aman buat dibeli sekarang!"
- 
+
             st.write(f"**Rekomendasi Aksi:** {action_plan}")
- 
+
             st.write(
                 f"**Kamu akan Membayar Harga Game ini dengan Total:** Rp {actual_price:,.0f} "
                 f"Setelah Diskon &nbsp;&nbsp;|&nbsp;&nbsp; "
