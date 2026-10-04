@@ -271,7 +271,7 @@ elif menu == "Evaluasi Pembelian":
     with col1:
         input_price = hw.input_rupiah("Masukkan Harga Asli Saat Ini (Rp)")
     with col2:
-        input_disc = hw.input_persen("Masukkan Harga Diskon Saat Ini (%)")
+        input_disc = hw.input_persen("Masukkan Diskon Saat Ini (%)")
 
     st.markdown("---")
     st.markdown("### Masukkan Rencana Main / Estimasi Jam Tamat")
