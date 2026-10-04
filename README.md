@@ -19,29 +19,29 @@ Masalah yang diselesaikan: pemain sering membeli game saat diskon tanpa melihat 
 Prasyarat: Git dan Python 3.10 atau lebih baru. Koneksi internet hanya dibutuhkan untuk mengambil estimasi jam dari HowLongToBeat, dan fitur itu bisa dilewati dengan mengisi estimasi manual.
 
 Langkah 1: clone repo dan masuk ke foldernya.
-
+ 
 ```
 git clone <url-repo>
 cd Backlogify
 ```
-
+ 
 Langkah 2: buat dan aktifkan virtual environment.
-
+ 
 ```
 python -m venv .venv
 .venv\Scripts\activate
 ```
-
+ 
 Di macOS atau Linux, ganti perintah aktivasi dengan `source .venv/bin/activate`.
-
+ 
 Langkah 3: install dependency.
-
+ 
 ```
-pip install streamlit howlongtobeatpy
+pip install -r requirements.txt
 ```
-
+ 
 Langkah 4: jalankan aplikasi di terminal, dari folder root repo.
-
+ 
 ```
 streamlit run src/app_web.py
 ```
