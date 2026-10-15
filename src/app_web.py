@@ -54,11 +54,6 @@ if "logged_in" not in st.session_state:
                     st.rerun()
     st.stop()
 
-# Pulihkan data milik user yang sedang login (state global dibagi antar sesi)
-if not data.load_session(st.session_state.profile_id):
-    st.session_state.clear()
-    st.rerun()
-
 # --- SETUP AWAL UNTUK PROFIL BARU ---
 if st.session_state.get("needs_setup", False):
     st.header("Setup Awal Threshold")
@@ -85,7 +80,6 @@ if st.session_state.get("needs_setup", False):
                 "min_discount_percent": new_disc,
             }
             data.save_thresholds(threshold_data)
-            data.saved_thresholds = threshold_data
             st.session_state.needs_setup = False
             st.rerun()
 

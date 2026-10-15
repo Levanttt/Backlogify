@@ -49,12 +49,10 @@ def pilih_estimasi_jam(title, key_prefix, default_manual=None, label_manual=None
     label_manual = label_manual or "Masukkan Target Estimasi Kamu Bermain Game Ini"
     k_hasil = f"{key_prefix}_hltb"
     k_judul = f"{key_prefix}_hltb_title"
-    k_dicari = f"{key_prefix}_hltb_searched"
 
-    # Membuang sesi lama kalau judulnya berubah, biar gak salah pakai hasil HLTB dari game sebelumnya
+    # Buang sesi lama kalau judulnya berubah, biar gak salah pakai hasil HLTB dari game sebelumnya
     if st.session_state.get(k_judul) != title:
         st.session_state[k_hasil] = None
-        st.session_state[k_dicari] = False
 
     if st.button("Berikan Opsi Gaya Main Otomatis", key=f"{key_prefix}_btn_hltb"):
         if not title.strip():
@@ -63,15 +61,16 @@ def pilih_estimasi_jam(title, key_prefix, default_manual=None, label_manual=None
             with st.spinner("Mengambil data estimasi..."):
                 st.session_state[k_hasil] = api.get_estimated_hours(title.strip())
                 st.session_state[k_judul] = title.strip()
-                st.session_state[k_dicari] = True
+            # Warning hanya tampil di run saat tombol ditekan, jadi hilang sendiri
+            # begitu user mengubah input lain dan tidak menempel dari pencarian sebelumnya.
+            if st.session_state[k_hasil] is None:
+                st.warning(
+                    "Gagal ambil data estimasi otomatis. Kemungkinan judul tidak ada di "
+                    "database, koneksi lambat, atau situsnya diblokir jaringan kamu. "
+                    "Silakan input manual di bawah."
+                )
 
     hasil = st.session_state.get(k_hasil)
-    if st.session_state.get(k_dicari) and st.session_state.get(k_judul) == title and hasil is None:
-        st.warning(
-            "Gagal ambil data estimasi otomatis. Kemungkinan judul tidak ada di "
-            "database, koneksi lambat, atau situsnya diblokir jaringan kamu. "
-            "Silakan input manual di bawah."
-        )
 
     if hasil:
         # Buat dict opsi: label (Main Story / Main + Sides / Completionist) -> jam
@@ -105,7 +104,7 @@ def pilih_estimasi_jam(title, key_prefix, default_manual=None, label_manual=None
 def reset_pilihan_estimasi(key_prefix):
     """Buang cache hasil pilih_estimasi_jam untuk key_prefix tertentu.
     Panggil ini abis datanya sukses disimpan, biar form berikutnya mulai bersih."""
-    for suffix in ["_hltb", "_hltb_title", "_hltb_searched"]:
+    for suffix in ["_hltb", "_hltb_title"]:
         k = f"{key_prefix}{suffix}"
         if k in st.session_state:
             del st.session_state[k]

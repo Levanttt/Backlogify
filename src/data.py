@@ -1,18 +1,3 @@
-"""
-Modul: Library Management & User Profile
-Owner: Billy (Dev 1)
-
-Backend: Supabase (Postgres). Semua baca/tulis library & profile
-langsung ke Supabase, tidak ada penyimpanan lokal.
-
-Catatan desain:
-- Variabel global (current_profile, library, dst) dipakai sebagai cache
-  in-memory per-session, supaya app_web.py bisa tetap akses
-  `data.library` seperti biasa. Sumber kebenarannya ada di Supabase.
-- Tiap dict game di `library` juga punya key "id" (uuid dari Supabase),
-  dipakai internal buat update/delete row yang tepat.
-"""
-
 import re
 import bcrypt
 import streamlit as st
@@ -23,11 +8,26 @@ SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-current_profile = None
-current_profile_id = None
-library = []
-saved_thresholds = None
-is_new_profile = False
+_STATE = (
+    "current_profile",
+    "current_profile_id",
+    "library",
+    "saved_thresholds",
+    "is_new_profile",
+)
+
+
+def __getattr__(name):
+    # Hanya dipanggil kalau atribut tidak ada di modul, jadi data.library
+    # otomatis membaca dari session_state milik sesi yang sedang berjalan.
+    if name in _STATE:
+        return st.session_state.get("data_" + name)
+    raise AttributeError(name)
+
+
+def _set(**kw):
+    for k, v in kw.items():
+        st.session_state["data_" + k] = v
 
 
 def determine_status(played_hours, est_hours):
@@ -52,13 +52,11 @@ def _fetch_games(profile_id):
 
 NAMA_VALID = re.compile(r"^[A-Za-z0-9 .\-]{3,30}$")
 
+
 def _cari_profile(name):
-    res = (
-        supabase.table("profiles")
-        .select("*")
-        .ilike("name", name.strip())
-        .execute()
-    )
+    # % dan _ di-escape supaya input user tidak dianggap wildcard oleh ilike.
+    pola = name.strip().replace("%", r"\%").replace("_", r"\_")
+    res = supabase.table("profiles").select("*").ilike("name", pola).execute()
     return res.data[0] if res.data else None
 
 
@@ -88,65 +86,45 @@ def register(name, password):
 
 def login(name, password):
     """Return library kalau berhasil, None kalau nama/password salah."""
-    global current_profile, current_profile_id, library, saved_thresholds, is_new_profile
-
     profile = _cari_profile(name)
     if not profile or not profile.get("password_hash"):
         return None
     if not bcrypt.checkpw(password.encode(), profile["password_hash"].encode()):
         return None
 
-    current_profile = profile["name"]
-    current_profile_id = profile["id"]
+    # Threshold masih None berarti profil belum selesai setup awal.
     if profile["max_unplayed_value"] is None:
-        saved_thresholds = None
-        is_new_profile = True
+        thresholds, is_new = None, True
     else:
-        saved_thresholds = {
+        thresholds, is_new = {
             "max_unplayed_value": profile["max_unplayed_value"],
             "max_backlog_hours": profile["max_backlog_hours"],
             "min_discount_percent": profile["min_discount_percent"],
-        }
-        is_new_profile = False
-    library = _fetch_games(current_profile_id)
-    return library
+        }, False
 
-
-def load_session(profile_id):
-    """Dipanggil tiap rerun Streamlit supaya variabel global sesuai user yang lagi aktif."""
-    global current_profile, current_profile_id, library, saved_thresholds
-
-    res = supabase.table("profiles").select("*").eq("id", profile_id).execute()
-    if not res.data:
-        return False
-    profile = res.data[0]
-    current_profile = profile["name"]
-    current_profile_id = profile["id"]
-    if profile["max_unplayed_value"] is None:
-        saved_thresholds = None
-    else:
-        saved_thresholds = {
-            "max_unplayed_value": profile["max_unplayed_value"],
-            "max_backlog_hours": profile["max_backlog_hours"],
-            "min_discount_percent": profile["min_discount_percent"],
-        }
-    library = _fetch_games(profile_id)
-    return True
+    games = _fetch_games(profile["id"])
+    _set(
+        current_profile=profile["name"],
+        current_profile_id=profile["id"],
+        library=games,
+        saved_thresholds=thresholds,
+        is_new_profile=is_new,
+    )
+    return games
 
 
 def save_thresholds(thresholds):
-    global saved_thresholds
-    saved_thresholds = thresholds
+    _set(saved_thresholds=thresholds)
     supabase.table("profiles").update({
         "max_unplayed_value": thresholds["max_unplayed_value"],
         "max_backlog_hours": thresholds["max_backlog_hours"],
         "min_discount_percent": thresholds["min_discount_percent"],
-    }).eq("id", current_profile_id).execute()
+    }).eq("id", st.session_state.data_current_profile_id).execute()
 
 
 def add_game(title, price, est_hours, played_hours):
     game = {
-        "profile_id": current_profile_id,
+        "profile_id": st.session_state.data_current_profile_id,
         "title": title,
         "price": price,
         "played_hours": played_hours,
@@ -155,12 +133,12 @@ def add_game(title, price, est_hours, played_hours):
     }
     res = supabase.table("games").insert(game).execute()
     saved_game = res.data[0]
-    library.append(saved_game)
+    st.session_state.data_library.append(saved_game)
     return saved_game
 
 
 def update_played_hours(index, played_hours):
-    game = library[index]
+    game = st.session_state.data_library[index]
     new_status = determine_status(played_hours, game["est_hours"])
 
     supabase.table("games").update({
@@ -174,7 +152,7 @@ def update_played_hours(index, played_hours):
 
 
 def update_est_hours(index, est_hours):
-    game = library[index]
+    game = st.session_state.data_library[index]
     new_status = determine_status(game["played_hours"], est_hours)
 
     supabase.table("games").update({
@@ -188,7 +166,6 @@ def update_est_hours(index, est_hours):
 
 
 def delete_game(index):
-    game = library[index]
+    game = st.session_state.data_library[index]
     supabase.table("games").delete().eq("id", game["id"]).execute()
-    removed = library.pop(index)
-    return removed
+    return st.session_state.data_library.pop(index)
