@@ -12,23 +12,52 @@ if "logged_in" not in st.session_state:
     st.write("Silakan login atau daftar untuk mengakses data backlog kamu.")
 
     tab_masuk, tab_daftar = st.tabs(["Masuk", "Daftar"])
-    for tab, label, aksi in [(tab_masuk, "Masuk", data.login), (tab_daftar, "Daftar", data.register)]:
-        with tab:
-            with st.form(f"form_{label}"):
-                email = st.text_input("Email")
-                password = st.text_input("Password (minimal 6 karakter)", type="password")
-                if st.form_submit_button(label):
-                    try:
-                        aksi(email.strip(), password)
-                    except Exception as e:
-                        # Pesan error (password salah, email sudah terdaftar, dst)
-                        st.error(str(e))
-                    else:
-                        st.session_state.logged_in = True
-                        st.session_state.username = data.current_profile
-                        st.session_state.needs_setup = bool(data.is_new_profile)
-                        st.rerun()
+
+    with tab_masuk:
+        with st.form("form_login"):
+            username = st.text_input("Nama Profile")
+            password = st.text_input("Password", type="password")
+            submit_login = st.form_submit_button("Masuk")
+
+        if submit_login:
+            if data.login(username, password) is None:
+                st.error("Nama atau password salah.")
+            else:
+                st.session_state.logged_in = True
+                st.session_state.username = data.current_profile
+                st.session_state.profile_id = data.current_profile_id
+                if data.is_new_profile:
+                    st.session_state.needs_setup = True
+                st.rerun()
+
+    with tab_daftar:
+        with st.form("form_daftar"):
+            new_name = st.text_input("Nama Profile Baru")
+            new_pass = st.text_input("Password", type="password")
+            new_pass2 = st.text_input("Ulangi Password", type="password")
+            submit_daftar = st.form_submit_button("Daftar")
+
+        if submit_daftar:
+            if new_pass != new_pass2:
+                st.error("Password dan ulangi password tidak sama.")
+            else:
+                ok, pesan = data.register(new_name, new_pass)
+                if not ok:
+                    st.error(pesan)
+                elif data.login(new_name, new_pass) is None:
+                    st.error("Pendaftaran berhasil, tapi gagal masuk. Coba login manual.")
+                else:
+                    st.session_state.logged_in = True
+                    st.session_state.username = data.current_profile
+                    st.session_state.profile_id = data.current_profile_id
+                    st.session_state.needs_setup = True
+                    st.rerun()
     st.stop()
+
+# Pulihkan data milik user yang sedang login (state global dibagi antar sesi)
+if not data.load_session(st.session_state.profile_id):
+    st.session_state.clear()
+    st.rerun()
 
 # --- SETUP AWAL UNTUK PROFIL BARU ---
 if st.session_state.get("needs_setup", False):
@@ -56,6 +85,7 @@ if st.session_state.get("needs_setup", False):
                 "min_discount_percent": new_disc,
             }
             data.save_thresholds(threshold_data)
+            data.saved_thresholds = threshold_data
             st.session_state.needs_setup = False
             st.rerun()
 
