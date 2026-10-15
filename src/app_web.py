@@ -9,19 +9,25 @@ st.set_page_config(page_title="Backlogify", page_icon="🎮", layout="wide")
 # --- SISTEM LOGIN ---
 if "logged_in" not in st.session_state:
     st.title("Selamat Datang di Backlogify")
-    st.write("Silakan login untuk mengakses data backlog kamu.")
+    st.write("Silakan login atau daftar untuk mengakses data backlog kamu.")
 
-    username = st.text_input("Masukkan Nama Profile:")
-    if st.button("Masuk"):
-        if username.strip():
-            data.login(username)
-            st.session_state.logged_in = True
-            st.session_state.username = username
-
-            if getattr(data, 'is_new_profile', False):
-                st.session_state.needs_setup = True
-
-            st.rerun()
+    tab_masuk, tab_daftar = st.tabs(["Masuk", "Daftar"])
+    for tab, label, aksi in [(tab_masuk, "Masuk", data.login), (tab_daftar, "Daftar", data.register)]:
+        with tab:
+            with st.form(f"form_{label}"):
+                email = st.text_input("Email")
+                password = st.text_input("Password (minimal 6 karakter)", type="password")
+                if st.form_submit_button(label):
+                    try:
+                        aksi(email.strip(), password)
+                    except Exception as e:
+                        # Pesan error (password salah, email sudah terdaftar, dst)
+                        st.error(str(e))
+                    else:
+                        st.session_state.logged_in = True
+                        st.session_state.username = data.current_profile
+                        st.session_state.needs_setup = bool(data.is_new_profile)
+                        st.rerun()
     st.stop()
 
 # --- SETUP AWAL UNTUK PROFIL BARU ---
@@ -50,7 +56,6 @@ if st.session_state.get("needs_setup", False):
                 "min_discount_percent": new_disc,
             }
             data.save_thresholds(threshold_data)
-            data.saved_thresholds = threshold_data
             st.session_state.needs_setup = False
             st.rerun()
 

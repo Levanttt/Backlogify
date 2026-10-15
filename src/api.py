@@ -1,14 +1,3 @@
-"""
-Modul: Game Info & API Integrator
-Owner: Alwi (Dev 2)
-
-Integrasi:
-- howlongtobeatpy  -> estimasi durasi tamat (main_story, main_extra, completionist)
-
-Fungsi publik return None kalau gagal (bukan raise), supaya app.py gampang
-cek: `if hasil is None: minta input manual`.
-"""
-
 import concurrent.futures
 
 from howlongtobeatpy import HowLongToBeat

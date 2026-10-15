@@ -1,14 +1,4 @@
-"""
-Modul: Helper Input Streamlit
-Owner: Rafael (Dev 3)
-
-Kumpulan wrapper untuk widget input Streamlit, biar format & behavior-nya
-seragam di semua halaman. Kalau mau ubah step / format / validasi, cukup
-ubah di sini, gak perlu kejar-kejar tiap number_input di app_web.py.
-"""
-
 import streamlit as st
-
 import api
 
 
@@ -61,7 +51,7 @@ def pilih_estimasi_jam(title, key_prefix, default_manual=None, label_manual=None
     k_judul = f"{key_prefix}_hltb_title"
     k_dicari = f"{key_prefix}_hltb_searched"
 
-    # Buang sesi lama kalau judulnya berubah, biar gak salah pakai hasil HLTB dari game sebelumnya
+    # Membuang sesi lama kalau judulnya berubah, biar gak salah pakai hasil HLTB dari game sebelumnya
     if st.session_state.get(k_judul) != title:
         st.session_state[k_hasil] = None
         st.session_state[k_dicari] = False

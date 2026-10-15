@@ -1,9 +1,3 @@
-"""
-Modul: Backlog Intelligence
-Owner: Billy (Dev 1)
-
-"""
-
 def get_unplayed_value(library):
     """
     Menghitung total nilai (Rp) dari game yang belum tamat.
