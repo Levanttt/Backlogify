@@ -69,6 +69,11 @@ def pilih_estimasi_jam(title, key_prefix, default_manual=None, label_manual=None
                     "database, koneksi lambat, atau situsnya diblokir jaringan kamu. "
                     "Silakan input manual di bawah."
                 )
+            else:
+                # Tanpa ini, jalur sukses cuma memunculkan selectbox tanpa tanda
+                # bahwa tombol sudah terklik. Tidak ada st.rerun() setelahnya,
+                # jadi toast langsung aman dan tidak perlu lewat antrean.
+                st.toast("Opsi gaya main ditemukan, pilih di bawah.", icon="✅")
 
     hasil = st.session_state.get(k_hasil)
 
