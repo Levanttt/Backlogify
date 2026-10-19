@@ -9,19 +9,49 @@ st.set_page_config(page_title="Backlogify", page_icon="🎮", layout="wide")
 # --- SISTEM LOGIN ---
 if "logged_in" not in st.session_state:
     st.title("Selamat Datang di Backlogify")
-    st.write("Silakan login untuk mengakses data backlog kamu.")
+    st.write("Silakan login atau daftar untuk mengakses data backlog kamu.")
 
-    username = st.text_input("Masukkan Nama Profile:")
-    if st.button("Masuk"):
-        if username.strip():
-            data.login(username)
-            st.session_state.logged_in = True
-            st.session_state.username = username
+    tab_masuk, tab_daftar = st.tabs(["Masuk", "Daftar"])
 
-            if getattr(data, 'is_new_profile', False):
-                st.session_state.needs_setup = True
+    with tab_masuk:
+        with st.form("form_login"):
+            username = st.text_input("Nama Profile")
+            password = st.text_input("Password", type="password")
+            submit_login = st.form_submit_button("Masuk")
 
-            st.rerun()
+        if submit_login:
+            if data.login(username, password) is None:
+                st.error("Nama atau password salah.")
+            else:
+                st.session_state.logged_in = True
+                st.session_state.username = data.current_profile
+                st.session_state.profile_id = data.current_profile_id
+                if data.is_new_profile:
+                    st.session_state.needs_setup = True
+                st.rerun()
+
+    with tab_daftar:
+        with st.form("form_daftar"):
+            new_name = st.text_input("Nama Profile Baru")
+            new_pass = st.text_input("Password", type="password")
+            new_pass2 = st.text_input("Ulangi Password", type="password")
+            submit_daftar = st.form_submit_button("Daftar")
+
+        if submit_daftar:
+            if new_pass != new_pass2:
+                st.error("Password dan ulangi password tidak sama.")
+            else:
+                ok, pesan = data.register(new_name, new_pass)
+                if not ok:
+                    st.error(pesan)
+                elif data.login(new_name, new_pass) is None:
+                    st.error("Pendaftaran berhasil, tapi gagal masuk. Coba login manual.")
+                else:
+                    st.session_state.logged_in = True
+                    st.session_state.username = data.current_profile
+                    st.session_state.profile_id = data.current_profile_id
+                    st.session_state.needs_setup = True
+                    st.rerun()
     st.stop()
 
 # --- SETUP AWAL UNTUK PROFIL BARU ---

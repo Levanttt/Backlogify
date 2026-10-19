@@ -1,2 +1,4 @@
 howlongtobeatpy
 streamlit
+supabase
+bcrypt

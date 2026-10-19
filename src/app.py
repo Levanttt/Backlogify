@@ -1,9 +1,3 @@
-"""
-Modul: Decision Engine & Dashboard UI
-Owner: Irfan (Lead) - Decision Engine, Menu 2 & Menu 4
-        Nabil (Dev 4) - Tampilan Koleksi & Ringkasan, Menu 3
-"""
-
 import analytics
 import api
 import backlog
