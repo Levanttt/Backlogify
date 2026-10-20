@@ -1,4 +1,7 @@
+import hashlib
+import hmac
 import re
+import time
 import bcrypt
 import streamlit as st
 from supabase import create_client, Client
@@ -91,7 +94,10 @@ def login(name, password):
         return None
     if not bcrypt.checkpw(password.encode(), profile["password_hash"].encode()):
         return None
+    return _muat_profile(profile)
 
+
+def _muat_profile(profile):
     # Threshold masih None berarti profil belum selesai setup awal.
     if profile["max_unplayed_value"] is None:
         thresholds, is_new = None, True
@@ -111,6 +117,37 @@ def login(name, password):
         is_new_profile=is_new,
     )
     return games
+
+
+TOKEN_TTL_DETIK = 7 * 86400
+
+
+def _sign(payload):
+    secret = st.secrets["AUTH_SECRET"].encode()
+    return hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
+
+
+def make_token(profile_id):
+    """Token bertanda tangan 'id.kadaluarsa.signature' untuk bertahan saat refresh."""
+    payload = f"{profile_id}.{int(time.time()) + TOKEN_TTL_DETIK}"
+    return f"{payload}.{_sign(payload)}"
+
+
+def restore(token):
+    """Return True kalau token valid dan sesi berhasil dipulihkan."""
+    try:
+        payload, sig = token.rsplit(".", 1)
+        pid, exp = payload.rsplit(".", 1)
+    except ValueError:
+        return False
+    # int(exp) aman karena baru dijalankan setelah signature cocok.
+    if not hmac.compare_digest(sig, _sign(payload)) or int(exp) < time.time():
+        return False
+    res = supabase.table("profiles").select("*").eq("id", pid).execute()
+    if not res.data:
+        return False
+    _muat_profile(res.data[0])
+    return True
 
 
 def save_thresholds(thresholds):

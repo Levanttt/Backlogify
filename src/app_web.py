@@ -6,7 +6,23 @@ import helpers_web as hw
 
 st.set_page_config(page_title="Backlogify", page_icon="🎮", layout="wide")
 
+def _mulai_sesi():
+    st.session_state.logged_in = True
+    st.session_state.username = data.current_profile
+    st.session_state.profile_id = data.current_profile_id
+    if data.is_new_profile:
+        st.session_state.needs_setup = True
+    # Token di URL bikin login bertahan saat halaman di-refresh.
+    st.query_params["t"] = data.make_token(data.current_profile_id)
+
+
 # --- SISTEM LOGIN ---
+if "logged_in" not in st.session_state and "t" in st.query_params:
+    if data.restore(st.query_params["t"]):
+        _mulai_sesi()
+    else:
+        st.query_params.clear()
+
 if "logged_in" not in st.session_state:
     st.title("Selamat Datang di Backlogify")
     st.write("Silakan login atau daftar untuk mengakses data backlog kamu.")
@@ -23,11 +39,7 @@ if "logged_in" not in st.session_state:
             if data.login(username, password) is None:
                 st.error("Nama atau password salah.")
             else:
-                st.session_state.logged_in = True
-                st.session_state.username = data.current_profile
-                st.session_state.profile_id = data.current_profile_id
-                if data.is_new_profile:
-                    st.session_state.needs_setup = True
+                _mulai_sesi()
                 st.rerun()
 
     with tab_daftar:
@@ -47,10 +59,7 @@ if "logged_in" not in st.session_state:
                 elif data.login(new_name, new_pass) is None:
                     st.error("Pendaftaran berhasil, tapi gagal masuk. Coba login manual.")
                 else:
-                    st.session_state.logged_in = True
-                    st.session_state.username = data.current_profile
-                    st.session_state.profile_id = data.current_profile_id
-                    st.session_state.needs_setup = True
+                    _mulai_sesi()
                     st.rerun()
     st.stop()
 
@@ -87,16 +96,23 @@ if st.session_state.get("needs_setup", False):
 
 # --- SIDEBAR NAVIGASI ---
 st.sidebar.title(f"Halo, {st.session_state.username}!")
-menu = st.sidebar.radio("Navigasi Menu", [
+MENU = [
     "Koleksi & Summary",
     "Registrasi Game Baru",
     "Evaluasi Pembelian",
-    "Pengaturan Threshold"
-])
+    "Pengaturan Threshold",
+]
+if "menu" not in st.session_state:
+    # Setelah refresh, buka lagi menu terakhir dari URL (default ke menu pertama).
+    m = st.query_params.get("menu")
+    st.session_state.menu = m if m in MENU else MENU[0]
+menu = st.sidebar.radio("Navigasi Menu", MENU, key="menu")
+st.query_params["menu"] = menu
 
 st.sidebar.markdown("---")
 if st.sidebar.button("Logout"):
     st.session_state.clear()
+    st.query_params.clear()
     st.rerun()
 
 # --- KONTEN MENU LIBRARY ---
