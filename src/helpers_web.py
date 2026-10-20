@@ -3,15 +3,16 @@ import api
 
 
 def _num_input(label, key=None, default=0, step=1, max_value=None):
-    return st.number_input(
+    nilai = st.number_input(
         label,
         min_value=0,
         max_value=max_value,
         step=step,
-        value=default,
-        format="%d",  # memaksakan input gak ada koma
+        value=default or None, 
+        format="%d",  
         key=key,
     )
+    return nilai or 0  
 
 
 def input_rupiah(label, key=None, default=0, step=5000):
