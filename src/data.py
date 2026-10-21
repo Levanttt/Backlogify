@@ -5,6 +5,7 @@ import time
 import bcrypt
 import streamlit as st
 from supabase import create_client, Client
+from backlog import linear_search
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
@@ -175,10 +176,9 @@ def add_game(title, price, est_hours, played_hours):
 
 def is_duplicate_title(title):
     """Mengecek apakah judul sudah ada di library (tidak peduli huruf besar/kecil)."""
-    for game in st.session_state.data_library:
-        if game["title"].strip().lower() == title.strip().lower():
-            return True
-    return False
+    titles = [game["title"].strip().lower() for game in st.session_state.data_library]
+    index, _ = linear_search(titles, title.strip().lower())
+    return index != -1
 
 def update_played_hours(index, played_hours):
     game = st.session_state.data_library[index]

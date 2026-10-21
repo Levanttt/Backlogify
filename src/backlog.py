@@ -45,3 +45,72 @@ def get_priority_game(library):
     if not active_games:
         return None
     return min(active_games, key=lambda row: Game.from_row(row).remaining_hours())
+
+
+SORT_KEYS = {
+    "Urutan input": None,
+    "Sisa jam terkecil": lambda row: Game.from_row(row).remaining_hours(),
+    "Harga tertinggi": lambda row: -row["price"],
+}
+
+
+def linear_search(items, target):
+    """Cari target dari awal. Return (indeks, jumlah pengecekan), indeks -1 kalau tidak ada."""
+    checks = 0
+    for i, item in enumerate(items):
+        checks += 1
+        if item == target:
+            return i, checks
+    return -1, checks
+
+
+def insertion_sort(items, key=lambda x: x):
+    """Urutkan salinan items. Return (hasil, jumlah perbandingan, jumlah geseran)."""
+    result = items.copy()  
+    comparisons = shifts = 0
+    for i in range(1, len(result)):
+        current = result[i]
+        j = i - 1
+        while j >= 0:
+            comparisons += 1
+            if key(result[j]) > key(current):
+                result[j + 1] = result[j]
+                shifts += 1
+                j -= 1
+            else:
+                break
+        result[j + 1] = current
+    return result, comparisons, shifts
+
+
+def sort_library(library, mode):
+    """Urutkan library sesuai mode di SORT_KEYS tanpa mengubah library asli."""
+    key = SORT_KEYS[mode]
+    if key is None:
+        return library
+    return insertion_sort(library, key=key)[0]
+
+
+if __name__ == "__main__":
+    assert linear_search([], 1) == (-1, 0)
+    assert linear_search([42, 17, 63, 8, 29], 63) == (2, 3)
+    assert linear_search([42, 17, 63, 8, 29], 99) == (-1, 5)
+    assert linear_search([7, 4, 7], 7) == (0, 1)
+    assert insertion_sort([]) == ([], 0, 0)
+    assert insertion_sort([7]) == ([7], 0, 0)
+    assert insertion_sort([5, 1, 4, 2, 8]) == ([1, 2, 4, 5, 8], 7, 4)
+    asli = [3, 1, 2]
+    insertion_sort(asli)
+    assert asli == [3, 1, 2]  
+
+    library = [
+        {"title": "A", "price": 100000, "est_hours": 10, "played_hours": 4},
+        {"title": "B", "price": 50000, "est_hours": 5, "played_hours": 5},
+        {"title": "C", "price": 80000, "est_hours": 8, "played_hours": 0},
+        {"title": "D", "price": 80000, "est_hours": 6, "played_hours": 0},
+    ]
+    judul = lambda rows: [r["title"] for r in rows]
+    assert judul(sort_library(library, "Urutan input")) == ["A", "B", "C", "D"]
+    assert judul(sort_library(library, "Sisa jam terkecil")) == ["B", "A", "D", "C"]
+    assert judul(sort_library(library, "Harga tertinggi")) == ["A", "C", "D", "B"]
+    print("Semua tes lolos.")

@@ -130,7 +130,13 @@ if menu == "Koleksi & Summary":
     col4.metric("Sisa Jam Backlog", f"{total_hours:.0f} Jam")
 
     st.markdown("---")
-    st.subheader("Detail Library Game")
+    kolom_judul, kolom_urut = st.columns([20, 1], vertical_alignment="center")
+    kolom_judul.subheader("Detail Library Game")
+    with kolom_urut.popover(
+        "", icon=":material/filter_list:", help="Urutkan tabel", use_container_width=True):
+        mode_urut = st.radio(
+            "Urutkan tabel", list(backlog.SORT_KEYS), label_visibility="collapsed"
+        )
 
     if not data.library:
         st.info("Koleksi backlog kamu masih kosong.")
@@ -143,7 +149,7 @@ if menu == "Koleksi & Summary":
                 "Estimasi": f"{g['est_hours']:.0f} Jam",
                 "Status": g["status"],
             }
-            for g in data.library
+            for g in backlog.sort_library(data.library, mode_urut)
         ]
         st.dataframe(tampilan, use_container_width=True, hide_index=True)
 
