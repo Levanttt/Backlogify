@@ -51,7 +51,6 @@ def pilih_estimasi_jam(title, key_prefix, default_manual=None, label_manual=None
     k_hasil = f"{key_prefix}_hltb"
     k_judul = f"{key_prefix}_hltb_title"
 
-    # Buang sesi lama kalau judulnya berubah, biar gak salah pakai hasil HLTB dari game sebelumnya
     if st.session_state.get(k_judul) != title:
         st.session_state[k_hasil] = None
 
@@ -62,24 +61,19 @@ def pilih_estimasi_jam(title, key_prefix, default_manual=None, label_manual=None
             with st.spinner("Mengambil data estimasi..."):
                 st.session_state[k_hasil] = api.get_estimated_hours(title.strip())
                 st.session_state[k_judul] = title.strip()
-            # Warning hanya tampil di run saat tombol ditekan, jadi hilang sendiri
-            # begitu user mengubah input lain dan tidak menempel dari pencarian sebelumnya.
+
             if st.session_state[k_hasil] is None:
                 st.warning(
                     "Gagal ambil data estimasi otomatis. Kemungkinan judul tidak ada di "
-                    "database, koneksi lambat, atau situsnya diblokir jaringan kamu. "
-                    "Silakan input manual di bawah."
+                    "database, game belum rilis dan belum punya data durasi, koneksi lambat, "
+                    "atau situsnya diblokir jaringan kamu. Silakan input manual di bawah."
                 )
             else:
-                # Tanpa ini, jalur sukses cuma memunculkan selectbox tanpa tanda
-                # bahwa tombol sudah terklik. Tidak ada st.rerun() setelahnya,
-                # jadi toast langsung aman dan tidak perlu lewat antrean.
                 st.toast("Opsi gaya main ditemukan, pilih di bawah.", icon="✅")
 
     hasil = st.session_state.get(k_hasil)
 
     if hasil:
-        # Buat dict opsi: label (Main Story / Main + Sides / Completionist) -> jam
         opsi = {
             f"{label} - {jam:.0f} jam": jam
             for label, jam in [
@@ -87,7 +81,7 @@ def pilih_estimasi_jam(title, key_prefix, default_manual=None, label_manual=None
                 ("Main + Sides", hasil["main_extra"]),
                 ("Completionist", hasil["completionist"]),
             ]
-            if jam is not None  # HLTB kadang cuma punya sebagian data
+            if jam is not None  
         }
         if opsi:
             pilihan = st.selectbox(
