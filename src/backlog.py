@@ -1,41 +1,47 @@
+class Game:
+    """Satu game di backlog: data jadi atribut, hitungan turunannya jadi method."""
+
+    def __init__(self, title, price, est_hours, played_hours):
+        self.title = title
+        self.price = price
+        self.est_hours = est_hours
+        self.played_hours = played_hours
+
+    @classmethod
+    def from_row(cls, row):
+        return cls(row["title"], row["price"], row["est_hours"], row["played_hours"])
+
+    def remaining_hours(self):
+        """Menghitung sisa jam bermain"""
+        return max(0, self.est_hours - self.played_hours)
+
+    def unplayed_value(self):
+        """
+        Menghitung total nilai (Rp) yang belum "kepakai", proporsional
+        terhadap sisa jam yang belum dimainkan dari tiap game.
+        """
+        if self.est_hours <= 0:
+            return 0
+        return self.price * self.remaining_hours() / self.est_hours
+
+
 def get_unplayed_value(library):
-    """
-    Menghitung total nilai (Rp) yang belum "kepakai", proporsional
-    terhadap sisa jam yang belum dimainkan dari tiap game.
-    """
-    total = 0
-    for game in library:
-        if game["est_hours"] > 0:
-            sisa_jam = max(0, game["est_hours"] - game["played_hours"])
-            rasio_sisa = sisa_jam / game["est_hours"]
-            total += game["price"] * rasio_sisa
-    return total
+    """Menghitung total nilai yang belum dimainkan dari seluruh game."""
+    return sum(Game.from_row(row).unplayed_value() for row in library)
 
 
 def get_remaining_hours(library):
     """Menghitung total sisa jam bermain dari game yang belum tamat."""
-    total = 0
-    # Memeriksa setiap game, hanya menjumlahkan sisa jam dari yang statusnya belum Completed.
-    for game in library:
-        if game["status"] != "Completed":
-            # Menggunakan max(0, ...) supaya sisa jam tidak menjadi minus kalau jam main melebihi estimasi.
-            total += max(0, game["est_hours"] - game["played_hours"])
-    return total
+    return sum(
+        Game.from_row(row).remaining_hours()
+        for row in library
+        if row["status"] != "Completed"
+    )
 
 
 def get_priority_game(library):
     """Mencari game aktif yang sisa jam bermainnya paling sedikit."""
-    priority_game = None
-    smallest_remaining = None
-
-    # Mencari seluruh game untuk mencari kandidat dengan sisa jam bermain paling kecil.
-    for game in library:
-        if game["status"] != "Completed":
-            # Menghitung sisa jam bermain dari game tersebut.
-            remaining = game["est_hours"] - game["played_hours"]
-            # Simpan game ini kalau belum ada patokan ATAU sisa jamnya lebih singkat dari game sebelumnya.
-            if priority_game is None or remaining < smallest_remaining:
-                priority_game = game
-                smallest_remaining = remaining
-
-    return priority_game
+    active_games = [row for row in library if row["status"] != "Completed"]
+    if not active_games:
+        return None
+    return min(active_games, key=lambda row: Game.from_row(row).remaining_hours())

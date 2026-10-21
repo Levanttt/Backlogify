@@ -339,8 +339,8 @@ elif menu == "Evaluasi Pembelian":
             actual_price = input_price * (1 - (input_disc / 100))
             pot_cph = analytics.calculate_cph(actual_price, eval_est_hours)
 
-            tot_unplayed = backlog.get_unplayed_value(data.library) + actual_price
-            tot_rem_hours = backlog.get_remaining_hours(data.library) + eval_est_hours
+            tot_unplayed = backlog.get_unplayed_value(data.library)
+            tot_rem_hours = backlog.get_remaining_hours(data.library)
 
             max_unplay = data.saved_thresholds.get("max_unplayed_value", 1000000.0)
             max_hrs = data.saved_thresholds.get("max_backlog_hours", 50.0)
