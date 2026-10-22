@@ -1,3 +1,5 @@
+from collections import Counter
+import altair as alt
 import streamlit as st
 import data
 import backlog
@@ -5,6 +7,9 @@ import analytics
 import helpers_web as hw
 
 st.set_page_config(page_title="Backlogify", page_icon="🎮", layout="wide")
+
+WARNA_STATUS = {"Unplayed": "#ff4b4b", "In-Progress": "#faca2b", "Completed": "#21c354"}
+WARNA_BAGIAN = {"Ngendap": "#ff4b4b", "Terpakai": "#21c354"}
 
 def _mulai_sesi():
     st.session_state.logged_in = True
@@ -123,11 +128,102 @@ if menu == "Koleksi & Summary":
     total_unplayed = backlog.get_unplayed_value(data.library)
     total_hours = backlog.get_remaining_hours(data.library)
 
+    if data.library:
+        max_unplay = data.saved_thresholds.get("max_unplayed_value", 1000000.0)
+        max_hrs = data.saved_thresholds.get("max_backlog_hours", 50.0)
+        kol_donut, kol_bar, kol_batas = st.columns([0.7, 1.5, 1.2])
+
+        # Donut chart
+        with kol_donut:
+            st.caption("Status Game di Library")
+            judul_per_status = {}
+            for g in data.library:
+                judul_per_status.setdefault(g["status"], []).append(g["title"])
+            rows_donut = [
+                {
+                    "Status": s,
+                    "Jumlah": len(judul),
+                    # Satu field per judul (maksimal 5), kosong kalau game-nya tidak ada.
+                    **{f"G{i + 1}": judul[i] if i < len(judul) else "" for i in range(5)},
+                    "Lain": f"+{len(judul) - 5} lainnya" if len(judul) > 5 else "",
+                }
+                for s, judul in judul_per_status.items()
+            ]
+            donut = alt.Chart(alt.Data(values=rows_donut)).mark_arc(innerRadius=50).encode(
+                theta="Jumlah:Q",
+                color=alt.Color(
+                    "Status:N",
+                    scale=alt.Scale(domain=list(WARNA_STATUS), range=list(WARNA_STATUS.values())),
+                    legend=alt.Legend(orient="bottom", title=None),
+                ),
+                tooltip=[
+                    alt.Tooltip("Status:N"),
+                    alt.Tooltip("Jumlah:Q"),
+                    *[
+                        alt.Tooltip(f"G{i}:N", title="Game" if i == 1 else " " * (i - 1))
+                        for i in range(1, 6)
+                    ],
+                    alt.Tooltip("Lain:N", title=" " * 5),
+                ],
+            ).properties(height=250)
+            st.altair_chart(donut, use_container_width=True, key=f"donut_{hash(str(rows_donut))}")
+
+        # Bar chart
+        with kol_bar:
+            kap, leg = st.columns([3, 2])
+            kap.caption("Uang yang mengendap / game (Rp)")
+            leg.markdown(
+                "<div style='text-align:right;font-size:0.875rem;opacity:0.6'>"
+                + " &nbsp; ".join(
+                    f"<span style='color:{w}'>■</span> {b}" for b, w in WARNA_BAGIAN.items()
+                )
+                + "</div>",
+                unsafe_allow_html=True,
+            )
+            ngendap = {g["title"]: backlog.Game.from_row(g).unplayed_value() for g in data.library}
+            urutan = sorted(ngendap, key=ngendap.get, reverse=True)  # ngendap terbesar di atas
+            rows_bar = [
+                {"Game": g["title"], "Bagian": bagian, "Rupiah": nilai}
+                for g in data.library
+                for bagian, nilai in (
+                    ("Ngendap", ngendap[g["title"]]),
+                    ("Terpakai", g["price"] - ngendap[g["title"]]),
+                )
+            ]
+            bar = alt.Chart(alt.Data(values=rows_bar)).mark_bar().encode(
+                y=alt.Y("Game:N", sort=urutan, title=None),
+                x=alt.X("Rupiah:Q", title=None),
+                color=alt.Color(
+                    "Bagian:N",
+                    scale=alt.Scale(domain=list(WARNA_BAGIAN), range=list(WARNA_BAGIAN.values())),
+                    legend=None,
+                ),
+                tooltip=["Game:N", "Bagian:N", alt.Tooltip("Rupiah:Q", format=",.0f")],
+            ).properties(height=max(250, 30 * len(urutan)))
+            st.altair_chart(bar, use_container_width=True, key=f"bar_{hash(str(rows_bar))}")
+
+        # Progress chart
+        with kol_batas:
+            st.caption("Status Threshold Backlog")
+            for label, nilai, batas in [
+                ("Uang yang mengendap", total_unplayed, max_unplay),
+                ("Sisa jam backlog", total_hours, max_hrs),
+            ]:
+                persen = nilai / batas * 100 if batas else 0
+                st.progress(min(persen / 100, 1.0), text=f"{label}: {persen:.0f}% dari batas yang ditetapkan")
+                if nilai > batas:
+                    st.error("Melewati batas.")
+    
+
+    st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)
+
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Game", f"{len(data.library)}")
     col2.metric("Total Nilai Koleksi", f"Rp {total_spent:,.0f}")
     col3.metric("Uang Ngendap", f"Rp {total_unplayed:,.0f}")
     col4.metric("Sisa Jam Backlog", f"{total_hours:.0f} Jam")
+
+    
 
     st.markdown("---")
     kolom_judul, kolom_urut = st.columns([20, 1], vertical_alignment="center")
