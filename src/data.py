@@ -3,7 +3,9 @@ import hmac
 import re
 import time
 import bcrypt
+import httpx
 import streamlit as st
+from postgrest.exceptions import APIError
 from supabase import create_client, Client
 from backlog import linear_search
 
@@ -83,9 +85,11 @@ def register(name, password):
             "name": name,
             "password_hash": hashed,
         }).execute()
-    except Exception:
+    except (APIError, httpx.HTTPError) as e:
+        print(f"[REGISTER ERROR] {e}")
         return False, "Gagal mendaftar, coba lagi."
-    return True, ""
+    else:
+        return True, ""
 
 
 def login(name, password):
@@ -160,7 +164,21 @@ def save_thresholds(thresholds):
     }).eq("id", st.session_state.data_current_profile_id).execute()
 
 
+class DataError(Exception):
+    """Error validasi data; pesannya aman ditampilkan ke user."""
+
+
 def add_game(title, price, est_hours, played_hours):
+    title = title.strip()
+    if not title:
+        raise DataError("Judul game tidak boleh kosong.")
+    if est_hours <= 0:
+        raise DataError("Estimasi jam tamat harus lebih dari 0.")
+    if price < 0 or played_hours < 0:
+        raise DataError("Harga dan jam main tidak boleh negatif.")
+    if is_duplicate_title(title):
+        raise DataError(f"'{title}' sudah ada di library kamu.")
+
     game = {
         "profile_id": st.session_state.data_current_profile_id,
         "title": title,
@@ -212,3 +230,27 @@ def delete_game(index):
     game = st.session_state.data_library[index]
     supabase.table("games").delete().eq("id", game["id"]).execute()
     return st.session_state.data_library.pop(index)
+
+def export_csv(path):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("judul,harga,estimasi_jam,jam_main\n")
+        for g in st.session_state.data_library:
+            f.write(f"{g['title']},{g['price']},{g['est_hours']},{g['played_hours']}\n")
+
+
+def import_csv(teks):
+    """Return (jumlah_berhasil, daftar_pesan_gagal). Baris pertama dianggap header."""
+    berhasil, gagal = 0, []
+    for no, baris in enumerate(teks.splitlines()[1:], start=2):
+        if not baris.strip():
+            continue
+        try:
+            judul, harga, est, main = baris.rsplit(",", 3)
+            add_game(judul, float(harga), float(est), float(main))
+        except ValueError:
+            gagal.append(f"Baris {no}: format salah")
+        except DataError as e:
+            gagal.append(f"Baris {no}: {e}")
+        else:
+            berhasil += 1
+    return berhasil, gagal
