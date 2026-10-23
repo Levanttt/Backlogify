@@ -1,4 +1,3 @@
-from collections import Counter
 import altair as alt
 import streamlit as st
 import data
@@ -223,8 +222,6 @@ if menu == "Koleksi & Summary":
     col3.metric("Uang Ngendap", f"Rp {total_unplayed:,.0f}")
     col4.metric("Sisa Jam Backlog", f"{total_hours:.0f} Jam")
 
-    
-
     st.markdown("---")
     kolom_judul, kolom_urut = st.columns([20, 1], vertical_alignment="center")
     kolom_judul.subheader("Detail Library Game")
@@ -233,6 +230,35 @@ if menu == "Koleksi & Summary":
         mode_urut = st.radio(
             "Urutkan tabel", list(backlog.SORT_KEYS), label_visibility="collapsed"
         )
+
+    with st.expander("Ekspor / Impor CSV"):
+        kiri, kanan = st.columns(2)
+
+        with kiri:
+            # File dibuat per profile supaya tidak bentrok antar user di server.
+            path = f"export_{data.current_profile_id}.csv"
+            data.export_csv(path)
+            with open(path, encoding="utf-8") as f:
+                st.download_button(
+                    "Unduh CSV", f.read(), "backlog.csv", "text/csv",
+                    disabled=not data.library,
+                )
+
+        with kanan:
+            st.caption("Format: judul,harga,estimasi_jam,jam_main (baris pertama header)")
+            berkas = st.file_uploader("Impor CSV", type="csv", label_visibility="collapsed")
+            if berkas and st.button("Impor"):
+                try:
+                    teks = berkas.getvalue().decode("utf-8-sig")
+                except UnicodeDecodeError:
+                    hw.flash_error("File harus berupa teks UTF-8.")
+                else:
+                    ok, gagal = data.import_csv(teks)
+                    if ok:
+                        hw.flash_success(f"{ok} game berhasil diimpor.")
+                    if gagal:
+                        hw.flash_error("; ".join(gagal[:5]))
+                st.rerun()
 
     if not data.library:
         st.info("Koleksi backlog kamu masih kosong.")
@@ -391,25 +417,16 @@ elif menu == "Registrasi Game Baru":
         st.caption(f"Setara dengan: **{played_hours:.1f} Jam**")
 
     if st.button("Tambahkan ke Library", type="primary"):
-        if title.strip() == "":
-            hw.flash_error("Judul game tidak boleh kosong.")
-            st.rerun()
-        elif est_hours <= 0:
-            hw.flash_error("Estimasi jam tamat harus lebih dari 0.")
-            st.rerun()
-        elif data.is_duplicate_title(title):
-            hw.flash_error(f"'{title}' sudah ada di library kamu.")
-            st.rerun()
-        else:
+        try:
             data.add_game(title, price, est_hours, played_hours)
-            hw.flash_success(f"'{title}' berhasil ditambahkan ke backlog kamu.")
-
+        except data.DataError as e:
+            hw.flash_error(str(e))
+        else:
+            hw.flash_success(f"'{title.strip()}' berhasil ditambahkan ke backlog kamu.")
             hw.reset_pilihan_estimasi("menu1")
-
             # semua widget Menu 1 bakal ke-reset setelah submit
             st.session_state.menu1_version += 1
-
-            st.rerun()
+        st.rerun()
 
 elif menu == "Evaluasi Pembelian":
     st.header("Evaluasi Pembelian Game Baru")
