@@ -231,6 +231,21 @@ if menu == "Koleksi & Summary":
             "Urutkan tabel", list(backlog.SORT_KEYS), label_visibility="collapsed"
         )
 
+    if not data.library:
+        st.info("Koleksi backlog kamu masih kosong.")
+    else:
+        tampilan = [
+            {
+                "Judul": g["title"],
+                "Harga": f"Rp {g['price']:,.0f}",
+                "Playtime": f"{g['played_hours']:.0f} Jam",
+                "Estimasi": f"{g['est_hours']:.0f} Jam",
+                "Status": g["status"],
+            }
+            for g in backlog.sort_library(data.library, mode_urut)
+        ]
+        st.dataframe(tampilan, use_container_width=True, hide_index=True)
+
     with st.expander("Ekspor / Impor CSV"):
         kiri, kanan = st.columns(2)
 
@@ -260,20 +275,7 @@ if menu == "Koleksi & Summary":
                         hw.flash_error("; ".join(gagal[:5]))
                 st.rerun()
 
-    if not data.library:
-        st.info("Koleksi backlog kamu masih kosong.")
-    else:
-        tampilan = [
-            {
-                "Judul": g["title"],
-                "Harga": f"Rp {g['price']:,.0f}",
-                "Playtime": f"{g['played_hours']:.0f} Jam",
-                "Estimasi": f"{g['est_hours']:.0f} Jam",
-                "Status": g["status"],
-            }
-            for g in backlog.sort_library(data.library, mode_urut)
-        ]
-        st.dataframe(tampilan, use_container_width=True, hide_index=True)
+    if data.library:
 
         st.markdown("---")
         st.subheader("Kelola Game")
