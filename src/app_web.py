@@ -261,7 +261,10 @@ if menu == "Koleksi & Summary":
 
         with kanan:
             st.caption("Format: judul,harga,estimasi_jam,jam_main (baris pertama header)")
-            berkas = st.file_uploader("Impor CSV", type="csv", label_visibility="collapsed")
+            berkas = st.file_uploader(
+                "Impor CSV", type="csv", label_visibility="collapsed",
+                key=f"csv_upload_{st.session_state.get('csv_version', 0)}",
+            )
             if berkas and st.button("Impor"):
                 try:
                     teks = berkas.getvalue().decode("utf-8-sig")
@@ -273,6 +276,8 @@ if menu == "Koleksi & Summary":
                         hw.flash_success(f"{ok} game berhasil diimpor.")
                     if gagal:
                         hw.flash_error("; ".join(gagal[:5]))
+                # Key baru membuat uploader kosong lagi setelah impor.
+                st.session_state.csv_version = st.session_state.get("csv_version", 0) + 1
                 st.rerun()
 
     if data.library:

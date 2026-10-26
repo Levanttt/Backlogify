@@ -38,6 +38,7 @@ pip-delete-this-directory.txt
 
 # Project-specific
 data/*.json
+export_*.csv
 
 # Unit test / coverage reports
 htmlcov/
