@@ -60,7 +60,6 @@ NAMA_VALID = re.compile(r"^[A-Za-z0-9 .\-]{3,30}$")
 
 
 def _cari_profile(name):
-    # % dan _ di-escape supaya input user tidak dianggap wildcard oleh ilike.
     pola = name.strip().replace("%", r"\%").replace("_", r"\_")
     res = supabase.table("profiles").select("*").ilike("name", pola).execute()
     return res.data[0] if res.data else None
@@ -145,7 +144,6 @@ def restore(token):
         pid, exp = payload.rsplit(".", 1)
     except ValueError:
         return False
-    # int(exp) aman karena baru dijalankan setelah signature cocok.
     if not hmac.compare_digest(sig, _sign(payload)) or int(exp) < time.time():
         return False
     res = supabase.table("profiles").select("*").eq("id", pid).execute()
